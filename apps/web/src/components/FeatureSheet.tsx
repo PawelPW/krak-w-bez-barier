@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ATTRS } from '@kbg/domain';
-import type { Feature } from '@kbg/domain';
-import { getDetail, postVerify } from '../api';
+import { getDetail, postObservation, postVerify } from '../api';
 import type { ObservationView } from '../api';
 import { useApp } from '../state';
-import { VERDICT_LABEL, formatDate } from '../status';
+import { VERDICT_LABEL, featureTitle, formatDate } from '../status';
 import { AttrRow } from './AttrRow';
 
-const KIND_TITLE = { crossing: 'Przejście dla pieszych', kerb: 'Krawężnik', segment: 'Odcinek bez nazwy' } as const;
-const titleOf = (f: Feature) => f.name ?? KIND_TITLE[f.kind];
+const titleOf = featureTitle;
 
 export function FeatureSheet() {
-  const { selectedId, featuresById, select, states, profile, statusFor, evalFor, setFeatureStates } = useApp();
+  const { selectedId, featuresById, select, states, profile, statusFor, evalFor, setFeatureStates, reportFor, setReportFor } = useApp();
   const feature = selectedId ? featuresById.get(selectedId) : undefined;
   const [detail, setDetail] = useState<{ id: string; list: ObservationView[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,12 +48,22 @@ export function FeatureSheet() {
     heading.current?.focus({ preventScroll: true });
   }, [selectedId, load]);
 
+  // Stany cechy zmieniły się (zgłoszenie, głos, odnowienie): odśwież listę obserwacji.
+  const st = selectedId ? states[selectedId] : undefined;
+  const seen = useRef<{ id: string; st: unknown } | null>(null);
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId) { seen.current = null; return; }
+    const prev = seen.current;
+    seen.current = { id: selectedId, st };
+    if (prev && prev.id === selectedId && prev.st !== st) load(selectedId);
+  }, [selectedId, st, load]);
+
+  useEffect(() => {
+    if (!selectedId || reportFor) return; // Escape w dialogu zamyka tylko dialog
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') select(null); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, select]);
+  }, [selectedId, select, reportFor]);
 
   if (!feature) return null;
 
@@ -63,7 +71,16 @@ export function FeatureSheet() {
     try {
       const res = await postVerify(obsId, agree);
       setFeatureStates(feature.id, res.states);
-      load(feature.id);
+    } catch (e) { setError((e as Error).message); }
+  };
+
+  const onRenew = async (obs: ObservationView, still: boolean) => {
+    try {
+      setError(null);
+      const value = still ? obs.value : !obs.value;
+      const validUntil = still ? new Date(Date.now() + 7 * 86_400_000).toISOString() : undefined;
+      const res = await postObservation({ featureId: feature.id, attr: obs.attr, value, validUntil });
+      setFeatureStates(feature.id, res.states);
     } catch (e) { setError((e as Error).message); }
   };
 
@@ -85,7 +102,7 @@ export function FeatureSheet() {
       {error && <p role="alert" className="error">{error}</p>}
       <ul className="attrs">
         {attrs.map((k) => (
-          <AttrRow key={k} attr={k} state={states[feature.id]?.[k]} observations={observations} onVerify={onVerify} />
+          <AttrRow key={k} attr={k} state={states[feature.id]?.[k]} observations={observations} onVerify={onVerify} onRenew={onRenew} />
         ))}
       </ul>
       {photos.length > 0 && (
@@ -101,7 +118,7 @@ export function FeatureSheet() {
           </ul>
         </div>
       )}
-      <button type="button" className="btn btn-primary btn-block" disabled>Zgłoś zmianę</button>
+      <button type="button" className="btn btn-primary btn-block" onClick={() => setReportFor(feature.id)}>Zgłoś zmianę</button>
       </div>
     </section>
   );

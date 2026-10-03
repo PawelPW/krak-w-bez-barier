@@ -6,9 +6,10 @@ import { TabBar } from './components/TabBar';
 import { ListView } from './components/ListView';
 import { ProfileView } from './components/ProfileView';
 import { RouteView } from './components/RouteView';
+import { ReportDialog } from './components/ReportDialog';
 
 function Shell() {
-  const { tab, pickTarget, setPickTarget, setRouteFrom, setRouteTo } = useApp();
+  const { tab, pickTarget, setPickTarget, setRouteFrom, setRouteTo, reportFor, setReportFor, setFeatureStates } = useApp();
   const onPick = (p: LonLat) => {
     if (pickTarget === 'from') setRouteFrom(p);
     else if (pickTarget === 'to') setRouteTo(p);
@@ -27,6 +28,9 @@ function Shell() {
       </div>
       <FeatureSheet />
       <TabBar />
+      {reportFor && (
+        <ReportDialog key={reportFor} featureId={reportFor} onClose={() => setReportFor(null)} onSaved={(s) => setFeatureStates(reportFor, s)} />
+      )}
     </div>
   );
 }

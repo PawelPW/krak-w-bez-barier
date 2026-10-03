@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, MapGeoJSONFeature } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { nearestFeature } from '@kbg/domain';
 import type { LonLat, Status } from '@kbg/domain';
 import { useApp } from '../state';
 import { LINE, STATUS_LABEL } from '../status';
@@ -17,7 +18,7 @@ interface Props {
 }
 
 export function MapView({ hidden, onPick }: Props) {
-  const { features, bbox, states, profile, statusFor, selectedId, select, tab, route, routeFrom, routeTo, setMapCenter, setUserPos } = useApp();
+  const { features, bbox, states, profile, statusFor, selectedId, select, tab, route, routeFrom, routeTo, setMapCenter, setUserPos, getMapCenter, userPos, setReportFor } = useApp();
   const markers = useRef<{ from: maplibregl.Marker | null; to: maplibregl.Marker | null }>({ from: null, to: null });
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -26,6 +27,7 @@ export function MapView({ hidden, onPick }: Props) {
   const selRef = useRef<string | null>(selectedId);
   selRef.current = selectedId;
   const [geoMsg, setGeoMsg] = useState('');
+  const [reportMsg, setReportMsg] = useState('');
   const live = useRef({ tab, select, onPick });
   live.current = { tab, select, onPick };
 
@@ -174,12 +176,24 @@ export function MapView({ hidden, onPick }: Props) {
     }
   }, [routeFrom, routeTo]);
 
+  useEffect(() => setReportMsg(''), [selectedId, tab]);
+
+  // Zgłoszenie dla zaznaczonej cechy albo najbliższej w promieniu 30 m od pozycji użytkownika / środka mapy.
+  const report = () => {
+    setReportMsg('');
+    if (selectedId) { setReportFor(selectedId); return; }
+    const f = nearestFeature(features, userPos ?? getMapCenter(), 30);
+    if (f) setReportFor(f.id);
+    else setReportMsg('Dotknij odcinka lub przejścia na mapie, którego dotyczy zgłoszenie.');
+  };
+
   return (
     <div className="mapwrap" style={hidden ? { visibility: 'hidden' } : undefined}>
       <a href="#main" className="skip">Pomiń mapę</a>
       <div className="mapbar">
         <button type="button" className="btn" onClick={() => { setGeoMsg(''); geoRef.current?.trigger(); }}>Pokaż moją lokalizację</button>
-        <p role="status" className="geomsg">{geoMsg}</p>
+        {tab === 'map' && <button type="button" className="btn" onClick={report}>Zgłoś</button>}
+        <p role="status" className="geomsg">{geoMsg}{reportMsg}</p>
       </div>
       <div ref={el} className="map" aria-hidden="true" />
       <ul className="legend" aria-label="Legenda mapy">

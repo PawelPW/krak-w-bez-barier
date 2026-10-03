@@ -10,11 +10,13 @@ interface Props {
   state?: AttributeState;
   observations: ObservationView[];
   onVerify(obsId: string, agree: boolean): void;
+  /** Wygasłe zgłoszenie: `still` = nadal aktualne (ta sama wartość) albo już nieaktualne (wartość przeciwna). */
+  onRenew(obs: ObservationView, still: boolean): void;
 }
 
 const newest = (list: ObservationView[]) => [...list].sort((a, b) => b.observedAt.localeCompare(a.observedAt))[0];
 
-export function AttrRow({ attr, state, observations, onVerify }: Props) {
+export function AttrRow({ attr, state, observations, onVerify, onRenew }: Props) {
   const def = ATTRS[attr];
   const mine = observations.filter((o) => o.attr === attr);
   const current = state ? newest(mine.filter((o) => !o.expired && o.value === state.value)) : undefined;
@@ -60,7 +62,15 @@ export function AttrRow({ attr, state, observations, onVerify }: Props) {
           <button type="button" className="btn" aria-label={`Nieprawda: ${voteName}`} onClick={() => onVerify(current.id, false)}>Nieprawda</button>
         </div>
       )}
-      {expired && !mine.some((o) => !o.expired) && <p className="attr-warn">Zgłoszenie wygasło {formatDate(expired.validUntil ?? expired.observedAt)}. Czy nadal aktualne?</p>}
+      {expired && !mine.some((o) => !o.expired) && (
+        <>
+          <p className="attr-warn">Zgłoszenie wygasło {formatDate(expired.validUntil ?? expired.observedAt)}. Czy nadal aktualne?</p>
+          <div className="attr-actions">
+            <button type="button" className="btn" aria-label={`Nadal aktualne: ${def.label} ${formatValue(attr, expired.value)}`} onClick={() => onRenew(expired, true)}>Nadal aktualne</button>
+            {def.type === 'bool' && <button type="button" className="btn" aria-label={`Już nieaktualne: ${def.label} ${formatValue(attr, expired.value)}`} onClick={() => onRenew(expired, false)}>Już nieaktualne</button>}
+          </div>
+        </>
+      )}
     </li>
   );
 }

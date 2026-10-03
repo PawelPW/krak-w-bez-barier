@@ -31,6 +31,9 @@ export interface AppValue {
   pickTarget: 'from' | 'to' | null;
   setPickTarget(t: 'from' | 'to' | null): void;
   /** Środek mapy trzymany w ref: zmiana nie renderuje konsumentów, czyta go tylko ten, kto go potrzebuje. */
+  /** Cecha, dla której otwarty jest dialog zgłoszenia (renderowany w Shell). */
+  reportFor: string | null;
+  setReportFor(id: string | null): void;
   getMapCenter(): LonLat;
   setMapCenter(p: LonLat): void;
   userPos: LonLat | null;
@@ -64,6 +67,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const mapCenterRef = useRef<LonLat>([19.940, 50.057]);
   const getMapCenter = useCallback(() => mapCenterRef.current, []);
   const setMapCenter = useCallback((p: LonLat) => { mapCenterRef.current = p; }, []);
+  const [reportFor, setReportFor] = useState<string | null>(null);
   const [userPos, setUserPos] = useState<LonLat | null>(null);
 
   // Wskazywanie punktu na mapie ma sens tylko w zakładce Trasa.
@@ -94,8 +98,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppValue | null>(() => data && ({
     features: data.features, featuresById, bbox: data.bbox, states, setFeatureStates, profile, choice, setChoice,
     tab, setTab, selectedId, select, route, setRoute, statusFor, evalFor,
-    routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, setPickTarget, getMapCenter, setMapCenter, userPos, setUserPos,
-  }), [data, featuresById, states, setFeatureStates, profile, choice, setChoice, tab, selectedId, select, route, statusFor, evalFor, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, getMapCenter, setMapCenter, userPos]);
+    routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, setPickTarget, getMapCenter, setMapCenter, userPos, setUserPos, reportFor, setReportFor,
+  }), [data, featuresById, states, setFeatureStates, profile, choice, setChoice, tab, selectedId, select, route, statusFor, evalFor, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, getMapCenter, setMapCenter, userPos, reportFor]);
 
   if (error) {
     return (

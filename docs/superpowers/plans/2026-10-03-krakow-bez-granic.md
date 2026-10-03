@@ -1495,7 +1495,7 @@ Zawartość, w tej kolejności:
 1. `<h2 id="sheet-title">`: nazwa ulicy lub „Przejście dla pieszych” / „Krawężnik” / „Odcinek bez nazwy”.
 2. Werdykt profilu: `<p class="verdict verdict-{status}">` z tekstem „Dla profilu {label}: przejezdne / utrudnione / zablokowane / za mało danych” i lista `<ul>` z `evalFor(f).reasons.map(r => r.text)`.
 3. Lista atrybutów: dla każdego klucza z `ATTRS`, którego `appliesTo` pasuje do rodzaju cechy, jeden `<AttrRow>`.
-4. Zdjęcia: miniatury `/photos/photos/{photoId}.jpg` z obserwacji mających `photoId`, każda z podpisem „zdjęcie niezweryfikowane, {data}”.
+4. Zdjęcia: miniatury `/photos/{photoId}.jpg` z obserwacji mających `photoId`, każda z podpisem „zdjęcie niezweryfikowane, {data}”.
 5. Przycisk „Zgłoś zmianę” (otwiera `ReportDialog` z Task 9; w tym zadaniu przycisk może być nieaktywny).
 
 `AttrRow` props: `{ attr: string; state?: AttributeState; observations: ObservationView[]; onVerify(obsId, agree) }`. Renderuje `<li>`:

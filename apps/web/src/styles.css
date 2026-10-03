@@ -82,9 +82,9 @@ main { outline: none; }
 
 .credit { margin: 0; height: var(--credit-h); display: flex; align-items: center; justify-content: center; font-size: 12px; background: var(--bg); border-top: 1px solid var(--line); }
 .credit a { color: var(--muted); }
-.mapbar { display: flex; align-items: center; gap: 12px; padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.mapbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
 .mapbar .btn { min-height: 44px; font-size: 14px; padding: 4px 12px; }
-.geomsg { margin: 0; font-size: 14px; color: var(--blocked); }
+.geomsg { flex-basis: 100%; margin: 0; font-size: 14px; color: var(--blocked); }
 
 h1 { font-size: 22px; }
 main h2 { font-size: 18px; margin-top: 8px; }
@@ -123,3 +123,13 @@ main h2 { font-size: 18px; margin-top: 8px; }
 .route-busy:empty { display: none; }
 .route-live { display: grid; gap: 8px; }
 .route-live:empty { display: none; }
+
+.report { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 0; border-radius: 16px; background: var(--bg); color: var(--ink); overflow-y: auto; overscroll-behavior: contain; }
+.report::backdrop { background: rgba(17, 24, 39, .6); }
+.report-body { display: grid; gap: 12px; padding: 16px; }
+.report-sub { margin: 0; color: var(--muted); }
+.report-form { display: grid; gap: 12px; }
+.field { display: grid; gap: 4px; font-weight: 600; }
+.field select, .field input { min-height: 44px; font: inherit; font-weight: 400; border: 2px solid var(--ink); border-radius: 10px; padding: 0 10px; background: var(--bg); color: var(--ink); }
+.report-done { margin: 0; font-weight: 600; color: var(--ok); }
+.report-done:empty { display: none; }

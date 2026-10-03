@@ -1,4 +1,4 @@
-import type { Status } from '@kbg/domain';
+import type { Feature, Status } from '@kbg/domain';
 
 export const LINE: Record<Status, { color: string; dash?: number[]; width: number }> = {
   ok:        { color: '#1a7f37', width: 4 },
@@ -22,3 +22,6 @@ export function formatDate(iso: string): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
+
+const KIND_TITLE = { crossing: 'Przejście dla pieszych', kerb: 'Krawężnik', segment: 'Odcinek bez nazwy' } as const;
+export const featureTitle = (f: Feature): string => f.name ?? KIND_TITLE[f.kind];
