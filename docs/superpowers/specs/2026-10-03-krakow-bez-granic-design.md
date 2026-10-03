@@ -56,7 +56,7 @@ scripts/import-osm.ts   Overpass → data/krakow.json
 
 ## Import OSM
 
-`scripts/import-osm.ts` wykonuje jedno zapytanie Overpass dla prostokąta obejmującego Stare Miasto i Kazimierz.
+`scripts/import-osm.ts` pobiera dane dla prostokąta obejmującego Stare Miasto i Kazimierz z głównego API OpenStreetMap (`/api/0.6/map.json`) w siatce 3 × 3 kafelków, bo Overpass nie jest osiągalny ze środowiska deweloperskiego. Filtrowanie tagów odbywa się w skrypcie.
 
 - Drogi: `highway` w `footway`, `path`, `pedestrian`, `steps`, `living_street`, `residential`, `service`, `cycleway`.
 - Ulice wyższych klas (`unclassified`, `tertiary`, `secondary`, `primary`) wchodzą do grafu, o ile nie mają `sidewalk=no/none/separate`. Bez nich graf rozpada się tam, gdzie chodnik jest tylko tagiem.
@@ -132,7 +132,8 @@ Format profilu jak w briefie:
 
 - Operatory: `eq`, `gt`, `lt`, `in`, modyfikator `unless`.
 - `evaluate(profile, states)` zwraca `{ blocked, costMultiplier, reasons[] }`. Każdy powód niesie atrybut, wartość, próg i rodzaj (twardy / miękki / brak danych).
-- Reguły miękkie mnożą koszt przez `cost`. Brak danych dla atrybutu wymienionego w dowolnej regule mnoży koszt przez `unknown_cost` raz na atrybut, o ile atrybut dotyczy danego rodzaju miejsca (odcinek albo węzeł). Wyjątki, dla których brak danych jest neutralny: `temporary_obstacle`, `guidance_line`, `bench`.
+- Reguły miękkie mnożą koszt przez `cost`. Brak danych dla atrybutu wymienionego w dowolnej regule mnoży koszt przez `unknown_cost` raz na atrybut, o ile atrybut dotyczy danego rodzaju miejsca (odcinek albo węzeł). Wyjątki, dla których brak danych jest neutralny: `temporary_obstacle`, `guidance_line`, `bench` oraz `incline_pct`, `width_cm` i `smoothness`. Te trzy ostatnie są w OSM prawie nieobecne (nachylenie 0%, szerokość 3%, gładkość 19% segmentów w obszarze dema), więc liczone jako brak danych zamieniałyby całą mapę w „brak danych”. Na karcie odcinka nadal widać je jako „brak danych”.
+- Status „utrudnione” daje reguła miękka o koszcie co najmniej 2; mniejsze koszty wpływają tylko na trasę.
 - `temporary_obstacle=true` jest regułą twardą w profilach wózkowych i miękką w pozostałych.
 - Profile: `wheelchair_manual`, `wheelchair_electric`, `blind`, `senior`, `stroller`, `skates`, `bike`. Progi robocze z briefu.
 - Nadpisania użytkownika to scalenie progów z profilem bazowym, zapisane w `localStorage`.

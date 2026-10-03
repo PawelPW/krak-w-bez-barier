@@ -575,7 +575,7 @@ export function evaluate(profile: Profile, values: Values, kind: FeatureKind): E
 
 export function statusOf(ev: Evaluation): Status {
   if (ev.blocked) return 'blocked';
-  if (ev.reasons.some((r) => r.kind === 'soft' && ATTRS[r.attr].barrier(r.value!))) return 'difficult';
+  if (ev.reasons.some((r) => r.kind === 'soft' && (r.cost ?? 1) > 1)) return 'difficult';
   if (ev.reasons.some((r) => r.kind === 'unknown')) return 'unknown';
   return 'ok';
 }
@@ -696,12 +696,12 @@ console.log(statusOf(evaluate(p,{steps:true,ramp:true,surface:'asphalt',width_cm
 ```
 Expected:
 ```
-difficult 13.5 [ 'Nawierzchnia: kostka granitowa', 'Nachylenie: brak danych', 'Gładkość: brak danych' ]
+difficult 9 [ 'Nawierzchnia: kostka granitowa', 'Nachylenie: brak danych', 'Gładkość: brak danych' ]
 blocked Wysokość krawężnika: 5 cm, twój limit 3 cm
 ok
 ok
 ```
-(13,5 = 4 × 1,5 × 1,5.)
+(9 = 4 × 1,5 × 1,5.)
 
 - [ ] **Step 5: Commit** — `git commit -am "Add rule engine and seven profiles"`
 
