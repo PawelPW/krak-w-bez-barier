@@ -4,14 +4,15 @@ export type BasemapId = 'light' | 'streets' | 'satellite';
 
 export const ORTO_ATTRIBUTION = 'Ortofotomapa © GUGiK (Geoportal)';
 
-/** Ortofotomapa Geoportalu (GUGiK): WMS 1.3.0, EPSG:3857 (oś x,y), kafel 256 px. Styl rastrowy nie potrzebuje glyphs ani sprite. */
+/** Ortofotomapa Geoportalu (GUGiK): WMTS (KVP), zestaw EPSG:3857 = standardowy układ XYZ, kafel 256 px. Styl rastrowy nie potrzebuje glyphs ani sprite. */
 const SATELLITE_STYLE: StyleSpecification = {
   version: 8,
   sources: {
     orto: {
       type: 'raster',
-      tiles: ['https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=Raster&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg'],
+      tiles: ['https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTOFOTOMAPA&STYLE=default&FORMAT=image/jpeg&TILEMATRIXSET=EPSG:3857&TILEMATRIX=EPSG:3857:{z}&TILEROW={y}&TILECOL={x}'],
       tileSize: 256,
+      maxzoom: 19,
       attribution: ORTO_ATTRIBUTION,
     },
   },

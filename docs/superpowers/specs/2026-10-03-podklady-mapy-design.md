@@ -13,7 +13,9 @@ Użytkownik wybiera tło mapy: jasne, uliczne albo zdjęcia lotnicze. Dane dost�
 |---|---|---|
 | `light` (domyślny) | Jasna | styl `https://tiles.openfreemap.org/styles/positron` |
 | `streets` | Ulice | styl `https://tiles.openfreemap.org/styles/liberty` |
-| `satellite` | Satelita | raster WMS ortofotomapy Geoportalu (GUGiK): `https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution`, warstwa `Raster`, `CRS=EPSG:3857`, kafel 256 px, `FORMAT=image/jpeg` |
+| `satellite` | Satelita | kafle WMTS ortofotomapy Geoportalu (GUGiK): `https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution`, warstwa `ORTOFOTOMAPA`, zestaw `EPSG:3857`, kafle 256 px JPEG, maksymalny zoom 19 |
+
+WMS tej samej usługi zwracał błędy 404 dla około 40% identycznych zapytań (pomiar 2026-10-03), dlatego używamy WMTS.
 
 Wszystkie źródła działają bez klucza i zwracają `Access-Control-Allow-Origin: *` (sprawdzone 2026-10-03).
 
