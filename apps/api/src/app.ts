@@ -1,7 +1,11 @@
+import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
-import { ATTRS, PROFILES, isValidValue, planRoute } from '@kbg/domain';
+import { ATTRS, PROFILES, isValidValue, nearestFeature, planRoute } from '@kbg/domain';
 import type { LonLat, Profile } from '@kbg/domain';
+import { classifyPhoto } from './ai';
 import * as store from './store';
 
 export const app = new Hono();
@@ -70,4 +74,54 @@ app.post('/api/route', async (c) => {
     console.error('route error:', (err as Error).message);
     return c.json({ message: 'Nie udało się wyznaczyć trasy' }, 500);
   }
+});
+
+const MAX_PHOTO_BYTES = 3_000_000;
+const PHOTOS_PER_HOUR = 20;
+const coord = (v: unknown, min: number, max: number): number | null => {
+  if (typeof v !== 'string' || v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= min && n <= max ? n : null;
+};
+
+// Zdjęcie nie jest rozmywane (znane ograniczenie dema). AI tylko sugeruje; decyzję podejmuje człowiek.
+app.post('/api/photos', async (c) => {
+  const author = authorOf(c);
+  if (!author) return c.json({ message: 'Brak identyfikatora urządzenia' }, 401);
+  const form = await c.req.parseBody().catch(() => null);
+  if (!form) return c.json({ message: 'Nieprawidłowe zapytanie' }, 400);
+  const file = form.file;
+  if (!(file instanceof File) || file.type !== 'image/jpeg' || file.size > MAX_PHOTO_BYTES) return c.json({ message: 'Wymagane zdjęcie JPEG do 3 MB' }, 400);
+  const jpeg = Buffer.from(await file.arrayBuffer());
+  if (jpeg.length > MAX_PHOTO_BYTES || jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8 || jpeg[2] !== 0xff) return c.json({ message: 'Wymagane zdjęcie JPEG do 3 MB' }, 400);
+
+  const rawLon = form.lon, rawLat = form.lat;
+  const lon = coord(rawLon, -180, 180), lat = coord(rawLat, -90, 90);
+  if ((rawLon !== undefined || rawLat !== undefined) && (lon === null || lat === null)) return c.json({ message: 'Nieprawidłowa pozycja' }, 400);
+  const hasPos = lon !== null && lat !== null;
+  let featureId: string | null = null;
+  if (form.featureId !== undefined && form.featureId !== '') {
+    if (typeof form.featureId !== 'string' || !store.featuresById.has(form.featureId)) return c.json({ message: 'Nieznane miejsce' }, 400);
+    featureId = form.featureId;
+  } else if (hasPos) {
+    featureId = nearestFeature(store.featuresById.values(), [lon, lat], 30)?.id ?? null;
+  }
+
+  const since = new Date(Date.now() - 3_600_000).toISOString();
+  const recent = (store.db.prepare(`SELECT COUNT(*) AS n FROM photos WHERE author_id = ? AND created_at > ?`).get(author, since) as { n: number }).n;
+  if (recent >= PHOTOS_PER_HOUR) return c.json({ message: 'Limit zdjęć na godzinę został wyczerpany. Spróbuj później.' }, 429);
+
+  const id = randomUUID();
+  writeFileSync(resolve(store.dataDir, 'photos', `${id}.jpg`), jpeg);
+  // Wiersz zapisujemy przed wywołaniem AI, żeby równoległe wysyłki liczyły się do limitu.
+  store.db.prepare(`INSERT INTO photos (id, author_id, feature_id, lon, lat, ai_result, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)`)
+    .run(id, author, featureId, hasPos ? lon : null, hasPos ? lat : null, new Date().toISOString());
+  const ai = await classifyPhoto(jpeg);
+  if (ai) store.db.prepare(`UPDATE photos SET ai_result = ? WHERE id = ?`).run(JSON.stringify(ai), id);
+
+  const feature = featureId ? store.featuresById.get(featureId)! : null;
+  const kind = feature ? (feature.kind === 'segment' ? 'segment' : 'node') : null;
+  const suggestions = (ai ?? []).filter((s) => kind && ATTRS[s.attr].appliesTo.includes(kind));
+  if (featureId) for (const s of suggestions) store.insertObservation({ featureId, attr: s.attr, value: s.value, source: 'ai', authorId: null, photoId: id });
+  return c.json({ photoId: id, featureId, aiAvailable: ai !== null, suggestions });
 });
