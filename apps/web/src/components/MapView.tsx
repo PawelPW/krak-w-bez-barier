@@ -30,8 +30,10 @@ export function MapView({ hidden, onPick }: Props) {
   const basemapRef = useRef(basemap);
   basemapRef.current = basemap;
   /** Podkład, który się jeszcze wczytuje (do czasu style.load albo pierwszego kafla satelity). */
-  const pendingRef = useRef<{ id: BasemapId; tileErrors: number } | null>({ id: basemap, tileErrors: 0 });
+  const pendingRef = useRef<{ id: BasemapId; token: number; styleLoaded: boolean; tileErrors: number } | null>({ id: basemap, token: 0, styleLoaded: false, tileErrors: 0 });
   const revertedRef = useRef(false);
+  const firstStyleRef = useRef(true);
+  const tokenRef = useRef(0);
   const [basemapMsg, setBasemapMsg] = useState('');
   const settle = (id: BasemapId) => {
     pendingRef.current = null;
@@ -47,7 +49,6 @@ export function MapView({ hidden, onPick }: Props) {
     const t = setTimeout(() => setBasemapMsg(''), 4000);
     return () => clearTimeout(t);
   }, [basemapMsg]);
-  const firstStyleRef = useRef(true);
   const appliedRef = useRef<BasemapId>(basemap);
   const geoRef = useRef<maplibregl.GeolocateControl | null>(null);
   const selRef = useRef<string | null>(selectedId);
@@ -121,19 +122,22 @@ export function MapView({ hidden, onPick }: Props) {
       if (!map.getSource('features')) map.addSource('features', { type: 'geojson', data: EMPTY });
       if (!map.getSource('route')) map.addSource('route', { type: 'geojson', data: EMPTY });
       const casingOpacity = basemapRef.current === 'satellite' ? 0.9 : 0.7;
+      // Najpierw wszystkie obwódki, potem wszystkie linie: obwódka jednego statusu nie może przykrywać linii innego.
+      const segFilter = (status: string) => ['all', ['==', ['get', 'kind'], 'segment'], ['==', ['get', 'status'], status]] as never;
       for (const [status, s] of Object.entries(LINE)) {
-        const filter = ['all', ['==', ['get', 'kind'], 'segment'], ['==', ['get', 'status'], status]] as never;
-        // Biała obwódka (zawsze ciągła, żeby kreskowanie zostało czytelne na zdjęciach) pod linią statusu.
+        // Biała obwódka (zawsze ciągła, żeby kreskowanie zostało czytelne na zdjęciach).
         if (!map.getLayer(`seg-casing-${status}`)) {
           map.addLayer({
-            id: `seg-casing-${status}`, type: 'line', source: 'features', filter,
+            id: `seg-casing-${status}`, type: 'line', source: 'features', filter: segFilter(status),
             layout: { 'line-cap': 'butt' },
             paint: { 'line-color': '#ffffff', 'line-width': s.width + 3, 'line-opacity': casingOpacity },
           });
         }
+      }
+      for (const [status, s] of Object.entries(LINE)) {
         if (!map.getLayer(`seg-${status}`)) {
           map.addLayer({
-            id: `seg-${status}`, type: 'line', source: 'features', filter,
+            id: `seg-${status}`, type: 'line', source: 'features', filter: segFilter(status),
             layout: { 'line-cap': 'butt' },
             paint: { 'line-color': s.color, 'line-width': s.width, ...(s.dash ? { 'line-dasharray': s.dash } : {}) },
           });
@@ -177,6 +181,7 @@ export function MapView({ hidden, onPick }: Props) {
     map.on('style.load', () => {
       addOverlay();
       const p = pendingRef.current;
+      if (p) p.styleLoaded = true;
       if (p && p.id !== 'satellite') settle(p.id); // satelita: za udany uznajemy dopiero pierwszy kafel
     });
     map.on('data', (e) => {
@@ -188,16 +193,21 @@ export function MapView({ hidden, onPick }: Props) {
       const p = pendingRef.current;
       if (!p) return;
       const sid = (e as { sourceId?: string }).sourceId;
-      // Geoportal potrafi sporadycznie zwrócić 404 dla pojedynczego kafla (zmierzone ok. 1/3 żądań), więc pojedynczy błąd kafla
-      // nie wystarcza: satelita wraca do „Jasnej” dopiero po kilku błędach kafli bez żadnego udanego.
-      if (sid === 'orto') p.tileErrors++;
-      const fatal = !map.isStyleLoaded() || (p.id === 'satellite' && p.tileErrors >= SAT_TILE_ERRORS);
+      // Błędy kafli innego źródła niż docelowy podkład (spóźnione żądania poprzedniego stylu) są ignorowane.
+      // Geoportal potrafi sporadycznie zwrócić 404 dla pojedynczego kafla, więc satelita wraca do „Jasnej”
+      // dopiero po kilku błędach kafli bez żadnego udanego. Styl URL: błąd bez źródła przed style.load = nie pobrano stylu.
+      let fatal = false;
+      if (p.id === 'satellite') {
+        if (sid === 'orto') { p.tileErrors++; fatal = p.tileErrors >= SAT_TILE_ERRORS; }
+      } else if (!sid && !p.styleLoaded) {
+        fatal = true;
+      }
       if (!fatal) return;
       pendingRef.current = null;
       if (p.id === 'light') return;
       revertedRef.current = true;
       setBasemapMsg('Nie udało się wczytać podkładu. Wracam do mapy jasnej.');
-      setBasemap('light');
+      setBasemap('light', { persist: false }); // zapisany wybór użytkownika zostaje
     });
 
     map.on('click', (e) => {
@@ -240,7 +250,7 @@ export function MapView({ hidden, onPick }: Props) {
     if (!map || appliedRef.current === basemap) return;
     appliedRef.current = basemap;
     readyRef.current = false;
-    pendingRef.current = { id: basemap, tileErrors: 0 };
+    pendingRef.current = { id: basemap, token: ++tokenRef.current, styleLoaded: false, tileErrors: 0 };
     if (!revertedRef.current) setBasemapMsg(''); // po awaryjnym powrocie zostaje komunikat o błędzie
     map.setStyle(basemapById(basemap).style, { diff: false });
   }, [basemap]);
@@ -286,7 +296,7 @@ export function MapView({ hidden, onPick }: Props) {
             </label>
           ))}
         </fieldset>
-        <p role="status" className="geomsg"><span>{geoMsg}</span><span>{reportMsg}</span><span className={basemapMsg.startsWith('Nie') ? undefined : 'geoinfo'}>{basemapMsg}</span></p>
+        <p role="status" className="geomsg"><span>{geoMsg}</span><span>{reportMsg}</span><span className={basemapMsg.startsWith('Nie') ? undefined : 'sr-only'}>{basemapMsg}</span></p>
       </div>
       <div ref={el} className="map" aria-hidden="true" />
       <div role="region" aria-label="Legenda mapy">

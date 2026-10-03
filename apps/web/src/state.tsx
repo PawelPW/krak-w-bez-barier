@@ -20,7 +20,8 @@ export interface AppValue {
   setChoice(c: ProfileChoice): void;
   /** Podkład mapy: jedno źródło prawdy dla przełącznika, mapy i linii atrybucji. */
   basemap: BasemapId;
-  setBasemap(id: BasemapId): void;
+  /** persist: false = tylko bieżący podkład (awaryjny powrót), zapisany wybór zostaje. */
+  setBasemap(id: BasemapId, opts?: { persist?: boolean }): void;
   tab: Tab;
   setTab(t: Tab): void;
   selectedId: string | null;
@@ -86,7 +87,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [attempt, setAttempt] = useState(0);
   const [choice, setChoiceRaw] = useState<ProfileChoice>(loadProfileChoice);
   const [basemap, setBasemapRaw] = useState<BasemapId>(loadBasemap);
-  const setBasemap = useCallback((id: BasemapId) => { saveBasemap(id); setBasemapRaw(id); }, []);
+  const setBasemap = useCallback((id: BasemapId, opts?: { persist?: boolean }) => { if (opts?.persist !== false) saveBasemap(id); setBasemapRaw(id); }, []);
   const [tab, setTab] = useState<Tab>('map');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [route, setRoute] = useState<RouteResult | null>(null);

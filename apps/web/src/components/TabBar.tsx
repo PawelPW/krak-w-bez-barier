@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useApp } from '../state';
 import type { Tab } from '../state';
 import { ORTO_ATTRIBUTION } from '../basemaps';
@@ -11,9 +12,15 @@ const TABS: { id: Tab; label: string }[] = [
 
 export function TabBar() {
   const { tab, setTab, basemap } = useApp();
+  const sat = basemap === 'satellite';
+  // Wysokość linii atrybucji jest zmienną :root, z której korzysta też arkusz cechy.
+  useEffect(() => {
+    document.documentElement.classList.toggle('credit-wide', sat);
+    return () => document.documentElement.classList.remove('credit-wide');
+  }, [sat]);
   return (
     <>
-      <footer className={basemap === 'satellite' ? 'credit credit-wide' : 'credit'}><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">Dane mapy © OpenStreetMap contributors</a>{basemap === 'satellite' && <> · <span>{ORTO_ATTRIBUTION}</span></>}</footer>
+      <footer className={sat ? 'credit credit-wide' : 'credit'}><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">Dane mapy © OpenStreetMap contributors</a>{sat && <span>· {ORTO_ATTRIBUTION}</span>}</footer>
       <nav className="tabbar" aria-label="Główna nawigacja">
         {TABS.map((t) => (
           <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
