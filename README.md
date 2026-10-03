@@ -14,7 +14,15 @@ pnpm dev:api   # API na http://localhost:3000
 pnpm dev:web   # front (Vite), proxy /api i /photos na port 3000
 ```
 
-Wersja produkcyjna z jednego portu: `pnpm build`, potem `pnpm start` (API serwuje też zbudowany front). Do obrazu Docker służy `Dockerfile` z katalogu głównego.
+Wersja produkcyjna z jednego portu: `pnpm build`, potem `pnpm start` (API serwuje też zbudowany front).
+
+### Klucz do analizy zdjęć (lokalnie)
+
+Skopiuj `.env.example` do `.env` w katalogu głównym, wpisz `ANTHROPIC_API_KEY=...` i uruchom API ponownie. Plik `.env` jest ignorowany przez git i nie wolno go commitować. API wczytuje go automatycznie, jeśli istnieje (`--env-file-if-exists`); bez pliku działa tak samo, tylko bez analizy zdjęć.
+
+### Wdrożenie
+
+Wdrożenie nie jest częścią obecnego dema. W repozytorium jest `Dockerfile` i `.dockerignore`, ale obraz nie był budowany ani testowany.
 
 ## Ponowny import danych OSM
 
@@ -26,7 +34,7 @@ Skrypt pobiera dane z głównego API OpenStreetMap, dzieląc obszar na siatkę k
 
 ## Zmienne środowiskowe
 
-- `ANTHROPIC_API_KEY` (opcjonalna, tylko po stronie serwera): włącza analizę zdjęć. Bez niej zdjęcie jest zapisywane, a użytkownik uzupełnia dane ręcznie.
+- `ANTHROPIC_API_KEY` (opcjonalna, tylko po stronie serwera; lokalnie z pliku `.env`): włącza analizę zdjęć. Bez niej zdjęcie jest zapisywane, a użytkownik uzupełnia dane ręcznie.
 - `DATA_DIR`: katalog na bazę SQLite i zdjęcia (domyślnie `var/` w repozytorium; w obrazie Docker `/data`, tam należy zamontować wolumen).
 - `PORT`: port serwera (domyślnie 3000).
 

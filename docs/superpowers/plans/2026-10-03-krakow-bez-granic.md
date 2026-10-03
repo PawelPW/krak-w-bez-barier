@@ -1821,7 +1821,7 @@ CMD ["pnpm", "start"]
 Run: `pnpm build && PORT=3000 pnpm start`, otwórz `http://localhost:3000`.
 Expected: aplikacja działa z jednego portu, odświeżenie strony nie daje 404, `/api/states` odpowiada.
 
-- [ ] **Step 5: Deploy na Railway (wymaga zgody użytkownika)**
+- [ ] **Step 5: Deploy na Railway — ODŁOŻONE decyzją użytkownika (demo działa lokalnie, klucz w lokalnym `.env`)**
 
 Zapytaj użytkownika o zgodę i o klucz `ANTHROPIC_API_KEY`. Wczytaj skill `use-railway`. Następnie: nowy projekt, usługa z repo (Dockerfile), wolumen zamontowany w `/data`, zmienne `ANTHROPIC_API_KEY` i `DATA_DIR=/data`, wygenerowana domena.
 
