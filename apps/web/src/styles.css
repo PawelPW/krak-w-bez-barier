@@ -33,7 +33,7 @@ main { outline: none; }
 .main-panel { z-index: 5; position: absolute; inset: 0; background: var(--bg); padding: 20px 16px; display: grid; gap: 12px; align-content: start; overflow: auto; }
 
 .tabbar { display: flex; height: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--bg); border-top: 1px solid var(--line); }
-.tabbar button { flex: 1; min-height: 44px; border: 0; background: none; font-weight: 600; color: var(--muted); cursor: pointer; border-top: 4px solid transparent; }
+.tabbar button { flex: 1 1 0; min-width: 0; padding: 0 2px; min-height: 44px; border: 0; background: none; font-weight: 600; color: var(--muted); cursor: pointer; border-top: 4px solid transparent; }
 .tabbar button[aria-current='page'] { color: var(--accent); border-top-color: var(--accent); }
 
 .btn { min-height: 44px; min-width: 44px; padding: 8px 16px; border: 2px solid var(--ink); border-radius: 10px; background: var(--bg); font-weight: 600; cursor: pointer; }
@@ -151,3 +151,18 @@ main h2 { font-size: 18px; margin-top: 8px; }
 .suggest-done { font-weight: 700; color: var(--ok); }
 .offline { margin: 0; padding: 6px 12px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 600; text-align: center; }
 .offline:empty { padding: 0; height: 0; }
+
+/* Powiększenie 200% (okno ~195 px): treść zawija się zamiast wychodzić poza ekran. */
+.tabbar button { font-size: 14px; overflow-wrap: anywhere; }
+.sheet-body { grid-template-columns: minmax(0, 1fr); overflow-wrap: anywhere; }
+.sheet-top h2 { min-width: 0; overflow-wrap: anywhere; }
+.sheet-top .btn { flex: none; }
+.attr-head { flex-wrap: wrap; }
+.slider input { min-width: 0; }
+.report-body { grid-template-columns: minmax(0, 1fr); overflow-wrap: anywhere; }
+.photo-pick-row { flex-wrap: wrap; }
+.suggest-item .attr-actions { flex-wrap: wrap; }
+.report-form, .photo { grid-template-columns: minmax(0, 1fr); }
+.field select, .field input { min-width: 0; width: 100%; }
+.slider input { margin: 0; }
+.photo-pick { text-align: center; }
