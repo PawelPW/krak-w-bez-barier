@@ -42,6 +42,12 @@ export interface AppValue {
   evalFor(f: Feature): Evaluation;
 }
 
+const LAST_LOAD_KEY = 'kbg.lastLoad';
+export function readLastLoad(): number | null {
+  try { const n = Number(localStorage.getItem(LAST_LOAD_KEY)); return Number.isFinite(n) && n > 0 ? n : null; } catch { return null; }
+}
+const writeLastLoad = (n: number) => { try { localStorage.setItem(LAST_LOAD_KEY, String(n)); } catch { /* tryb prywatny */ } };
+
 const Ctx = createContext<AppValue | null>(null);
 
 export function useApp(): AppValue {
@@ -77,7 +83,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let live = true;
     setError(null);
     Promise.all([getSnapshot(), getStates()]).then(
-      ([snap, st]) => { if (live) { setData({ features: snap.features, bbox: snap.bbox }); setStates(st); } },
+      ([snap, st]) => {
+        if (!live) return;
+        setData({ features: snap.features, bbox: snap.bbox }); setStates(st);
+        // Z cache'u Service Workera dane też „wczytują się”: znacznik zapisujemy tylko przy działającej sieci.
+        if (navigator.onLine) writeLastLoad(Date.now());
+      },
       (e: Error) => { if (live) setError(e.message); },
     );
     return () => { live = false; };

@@ -1,4 +1,6 @@
-import { AppProvider, useApp } from './state';
+import { useEffect, useState } from 'react';
+import { AppProvider, readLastLoad, useApp } from './state';
+import { formatDateTime } from './status';
 import type { LonLat } from '@kbg/domain';
 import { MapView } from './components/MapView';
 import { FeatureSheet } from './components/FeatureSheet';
@@ -7,6 +9,18 @@ import { ListView } from './components/ListView';
 import { ProfileView } from './components/ProfileView';
 import { RouteView } from './components/RouteView';
 import { ReportDialog } from './components/ReportDialog';
+
+function OfflineBanner() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true), off = () => setOnline(false);
+    window.addEventListener('online', on); window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+  const at = readLastLoad();
+  // Kontener jest zawsze w drzewie dostępności; zmienia się tylko tekst.
+  return <p role="status" className="offline">{online ? '' : at ? `Dane z ${formatDateTime(at)} — brak połączenia` : 'Brak połączenia'}</p>;
+}
 
 function Shell() {
   const { tab, pickTarget, setPickTarget, setRouteFrom, setRouteTo, reportFor, setReportFor, setFeatureStates } = useApp();
@@ -17,6 +31,7 @@ function Shell() {
   };
   return (
     <div className="app">
+      <OfflineBanner />
       <div className="stage">
         <MapView hidden={tab === 'list' || tab === 'profile'} onPick={onPick} />
         <main id="main" tabIndex={-1} className={tab === 'map' ? 'main-map' : tab === 'route' ? 'main-float' : 'main-panel'}>

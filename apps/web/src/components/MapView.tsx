@@ -106,7 +106,7 @@ export function MapView({ hidden, onPick }: Props) {
         paint: {
           'circle-radius': 6,
           'circle-stroke-width': st(2, 3, 3, 2),
-          'circle-stroke-color': st('#ffffff', '#b35900', '#5f1410', '#ffffff'),
+          'circle-stroke-color': st('#ffffff', '#a34f00', '#5f1410', '#ffffff'),
           'circle-color': st('#1a7f37', '#ffffff', '#b3261e', 'rgba(107,114,128,0.6)'),
         },
       });
@@ -196,7 +196,8 @@ export function MapView({ hidden, onPick }: Props) {
         <p role="status" className="geomsg"><span>{geoMsg}</span><span>{reportMsg}</span></p>
       </div>
       <div ref={el} className="map" aria-hidden="true" />
-      <ul className="legend" aria-label="Legenda mapy">
+      <div role="region" aria-label="Legenda mapy">
+      <ul className="legend">
         {STATUSES.map((s) => (
           <li key={s}>
             <svg width="34" height="10" viewBox="0 0 34 10" aria-hidden="true" focusable="false">
@@ -207,6 +208,7 @@ export function MapView({ hidden, onPick }: Props) {
           </li>
         ))}
       </ul>
+      </div>
     </div>
   );
 }

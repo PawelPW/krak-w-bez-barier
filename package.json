@@ -2,6 +2,7 @@
   "name": "krakow-bez-granic",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.25.0",
   "engines": { "node": ">=22.13" },
   "scripts": {
     "import:osm": "tsx scripts/import-osm.ts",

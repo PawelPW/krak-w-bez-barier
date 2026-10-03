@@ -1,5 +1,5 @@
 :root {
-  --ok: #1a7f37; --difficult: #b35900; --blocked: #b3261e; --unknown: #6b7280;
+  --ok: #1a7f37; --difficult: #a34f00; --blocked: #b3261e; --unknown: #6b7280;
   --ink: #111827; --muted: #4b5563; --line: #d1d5db; --bg: #ffffff; --soft: #f3f4f6; --accent: #1d4ed8;
   --tabbar-h: 56px; --credit-h: 28px;
 }
@@ -149,3 +149,5 @@ main h2 { font-size: 18px; margin-top: 8px; }
 .suggest-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .suggest-item { display: grid; gap: 6px; padding: 10px 12px; border: 2px dashed var(--difficult); border-radius: 10px; }
 .suggest-done { font-weight: 700; color: var(--ok); }
+.offline { margin: 0; padding: 6px 12px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 600; text-align: center; }
+.offline:empty { padding: 0; height: 0; }
