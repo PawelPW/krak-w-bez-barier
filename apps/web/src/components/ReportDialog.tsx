@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
-import type { FormEvent } from 'react';
-import { ATTRS, isValidValue } from '@kbg/domain';
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { ATTRS, formatValue, isValidValue } from '@kbg/domain';
 import type { AttrValue, StatesByAttr } from '@kbg/domain';
-import { postObservation } from '../api';
-import type { PhotoResult } from '../api';
+import { getDetail, postObservation, postPhoto } from '../api';
+import type { PhotoResult, Suggestion } from '../api';
 import { useApp } from '../state';
 import { featureTitle } from '../status';
 
@@ -33,11 +33,169 @@ export function ReportDialog({ featureId, onClose, onSaved, initialPhoto }: Prop
       <div className="report-body">
         <h2 id="report-title">Zgłoś zmianę</h2>
         <p className="report-sub">{featureTitle(feature)}</p>
-        {/* Miejsce na sekcję zdjęcia (Task 10), nad formularzem ręcznym. */}
-        <ManualForm featureId={featureId} kind={feature.kind} photoId={initialPhoto?.photoId} onSaved={onSaved} />
+        <PhotoSection featureId={featureId} kind={feature.kind} initialPhoto={initialPhoto} onSaved={onSaved} />
         <button type="button" className="btn btn-block" onClick={() => ref.current?.close()}>Gotowe</button>
       </div>
     </dialog>
+  );
+}
+
+const PHOTO_MAX_PX = 1280;
+const GEO_TIMEOUT_MS = 5000;
+const MSG_PROCESS = 'Nie udało się przetworzyć zdjęcia. Spróbuj zrobić je ponownie.';
+
+async function downscale(file: File, max = PHOTO_MAX_PX): Promise<Blob> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close?.();
+  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error(MSG_PROCESS))), 'image/jpeg', 0.8));
+}
+
+/** Pozycja urządzenia albo null (brak zgody, błąd, 5 s); zdjęcie nie czeka dłużej niż GEO_TIMEOUT_MS. */
+function currentPosition(): Promise<{ lon: number; lat: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    const timer = window.setTimeout(() => resolve(null), GEO_TIMEOUT_MS);
+    const done = (v: { lon: number; lat: number } | null) => { window.clearTimeout(timer); resolve(v); };
+    navigator.geolocation.getCurrentPosition(
+      (p) => done({ lon: p.coords.longitude, lat: p.coords.latitude }),
+      () => done(null),
+      { timeout: GEO_TIMEOUT_MS, maximumAge: 30_000 },
+    );
+  });
+}
+
+interface SectionProps {
+  featureId: string;
+  kind: 'segment' | 'crossing' | 'kerb';
+  initialPhoto?: PhotoResult;
+  onSaved(states: StatesByAttr): void;
+}
+
+const suggestionName = (s: Suggestion) => `${ATTRS[s.attr].label} ${formatValue(s.attr, s.value)}`;
+
+function PhotoSection({ featureId, kind, initialPhoto, onSaved }: SectionProps) {
+  const { setFeatureStates } = useApp();
+  const [preview, setPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<PhotoResult | null>(initialPhoto ?? null);
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(new Set());
+  const [itemError, setItemError] = useState<string | null>(null);
+  // Poprawka podpowiedzi: formularz ręczny ustawiony na atrybut, z numerem do remontowania (key).
+  const [fix, setFix] = useState<{ attr: string; n: number } | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+  const seq = useRef(0);
+  const previewRef = useRef<string | null>(null);
+  const items = useRef<Map<string, HTMLLIElement>>(new Map());
+  const [focusAttr, setFocusAttr] = useState<string | null>(null);
+
+  useEffect(() => () => { seq.current++; if (previewRef.current) URL.revokeObjectURL(previewRef.current); }, []);
+  useEffect(() => {
+    if (focusAttr) { items.current.get(focusAttr)?.focus(); setFocusAttr(null); }
+  }, [focusAttr]);
+
+  const setPreviewUrl = (url: string | null) => {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = url;
+    setPreview(url);
+  };
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    input.value = ''; // to samo zdjęcie można wybrać ponownie
+    if (!file) return;
+    const mine = ++seq.current;
+    // Nowe zdjęcie kasuje powiązanie ze starym: sugestie, poprawki i photoId.
+    setResult(null); setFix(null); setConfirmed(new Set()); setItemError(null); setError(null);
+    setBusy(true); setStatus('Analizuję zdjęcie…');
+    try {
+      const [blob, pos] = await Promise.all([downscale(file).catch(() => { throw new Error(MSG_PROCESS); }), currentPosition()]);
+      if (seq.current !== mine) return;
+      setPreviewUrl(URL.createObjectURL(blob));
+      const form = new FormData();
+      form.append('file', blob, 'photo.jpg');
+      form.append('featureId', featureId);
+      if (pos) { form.append('lon', String(pos.lon)); form.append('lat', String(pos.lat)); }
+      const res = await postPhoto(form);
+      if (seq.current !== mine) return;
+      setResult(res);
+      if (!res.aiAvailable) setStatus('Analiza zdjęcia jest teraz niedostępna. Zdjęcie zapisane, uzupełnij dane ręcznie.');
+      else if (res.suggestions.length === 0) setStatus('Nie udało się niczego rozpoznać na zdjęciu. Uzupełnij dane ręcznie.');
+      else setStatus(`Analiza zakończona. Liczba sugestii AI do potwierdzenia: ${res.suggestions.length}.`);
+      if (res.suggestions.length > 0) {
+        // Serwer zapisał już obserwacje ze źródłem „ai”: odśwież stany cechy.
+        getDetail(featureId).then((d) => setFeatureStates(featureId, d.states), () => { /* odświeży się przy następnej akcji */ });
+      }
+    } catch (err) {
+      if (seq.current !== mine) return;
+      setStatus('');
+      setError((err as Error).message || MSG_PROCESS);
+    } finally {
+      if (seq.current === mine) setBusy(false);
+    }
+  };
+
+  const confirm = async (s: Suggestion) => {
+    if (!result) return;
+    setPending(s.attr); setItemError(null);
+    try {
+      const res = await postObservation({ featureId, attr: s.attr, value: s.value, photoId: result.photoId });
+      onSaved(res.states);
+      setConfirmed((prev) => new Set(prev).add(s.attr));
+      setFocusAttr(s.attr);
+    } catch (err) { setItemError((err as Error).message); }
+    finally { setPending(null); }
+  };
+
+  const hasSuggestions = !!result && result.aiAvailable && result.suggestions.length > 0;
+  // photoId trafia do formularza tylko wtedy, gdy dotyczy zdjęcia: po nieudanej analizie albo przy poprawce podpowiedzi.
+  const formPhotoId = result ? (hasSuggestions ? (fix ? result.photoId : null) : result.photoId) : null;
+
+  return (
+    <section className="photo" aria-labelledby="photo-title">
+      <h3 id="photo-title" className="sr-only">Zdjęcie miejsca</h3>
+      <div className="photo-pick-row">
+        <input id="photo-input" className="photo-input" type="file" accept="image/*" capture="environment" onChange={onFile} disabled={busy} />
+        <label htmlFor="photo-input" className="btn photo-pick" aria-disabled={busy}>{preview || result ? 'Zrób inne zdjęcie' : 'Zrób zdjęcie'}</label>
+        {preview && <img className="photo-thumb" src={preview} alt="Twoje zdjęcie miejsca" />}
+      </div>
+      <p role="status" aria-live="polite" className="photo-status">{status}</p>
+      {error && <p role="alert" className="error">{error}</p>}
+      {hasSuggestions && result && (
+        <div className="suggest">
+          <h3>Sugestie AI (do potwierdzenia)</h3>
+          <p className="suggest-note">To propozycje modelu. Zapisujemy tylko to, co potwierdzisz.</p>
+          <ul className="suggest-list">
+            {result.suggestions.map((s) => {
+              const text = `${ATTRS[s.attr].label}: ${formatValue(s.attr, s.value)} (pewność AI ${Math.round(s.confidence * 100)}%)`;
+              const done = confirmed.has(s.attr);
+              return (
+                <li key={s.attr} className="suggest-item" tabIndex={-1} ref={(n) => { if (n) items.current.set(s.attr, n); else items.current.delete(s.attr); }}>
+                  <span>{text}</span>
+                  {done ? <span className="suggest-done">Potwierdzone</span> : (
+                    <span className="attr-actions">
+                      <button type="button" className="btn" disabled={pending !== null} aria-label={`Potwierdzam: ${suggestionName(s)}`} onClick={() => confirm(s)}>Potwierdzam</button>
+                      <button type="button" className="btn" aria-label={`Popraw: ${suggestionName(s)}`} onClick={() => setFix((f) => ({ attr: s.attr, n: (f?.n ?? 0) + 1 }))}>Popraw</button>
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {itemError && <p role="alert" className="error">{itemError}</p>}
+        </div>
+      )}
+      {hasSuggestions && <h3>{fix ? `Popraw: ${ATTRS[fix.attr].label}` : 'Zgłoś ręcznie'}</h3>}
+      <ManualForm key={fix?.n ?? 0} featureId={featureId} kind={kind} presetAttr={fix?.attr} photoId={formPhotoId}
+        photoOnlyFor={fix?.attr} onSaved={onSaved} />
+    </section>
   );
 }
 
@@ -51,10 +209,12 @@ interface FormProps {
   /** Ustawia z góry wybrany atrybut (np. z podpowiedzi AI). */
   presetAttr?: string;
   photoId?: string | null;
+  /** Gdy ustawione, `photoId` dołącza się tylko do zgłoszenia tego atrybutu (poprawka podpowiedzi AI). */
+  photoOnlyFor?: string;
   onSaved(states: StatesByAttr): void;
 }
 
-export function ManualForm({ featureId, kind, presetAttr, photoId, onSaved }: FormProps) {
+export function ManualForm({ featureId, kind, presetAttr, photoId, photoOnlyFor, onSaved }: FormProps) {
   const applies = kind === 'segment' ? 'segment' : 'node';
   const attrs = Object.keys(ATTRS).filter((k) => ATTRS[k].reportable && ATTRS[k].appliesTo.includes(applies));
   const [attr, setAttr] = useState(presetAttr && attrs.includes(presetAttr) ? presetAttr : '');
@@ -64,6 +224,13 @@ export function ManualForm({ featureId, kind, presetAttr, photoId, onSaved }: Fo
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState('');
   const def = attr ? ATTRS[attr] : undefined;
+  const formRef = useRef<HTMLFormElement>(null);
+  // Po „Popraw” fokus trafia na pole wartości (pierwsze pole to wybór atrybutu, już ustawiony).
+  useEffect(() => {
+    if (!presetAttr) return;
+    const fields = formRef.current?.querySelectorAll<HTMLElement>('select, input');
+    (fields?.[1] ?? fields?.[0])?.focus();
+  }, [presetAttr]);
   const today = dateInput(new Date());
 
   const change = (fn: () => void) => { fn(); setError(null); setDone(''); };
@@ -90,7 +257,7 @@ export function ManualForm({ featureId, kind, presetAttr, photoId, onSaved }: Fo
     }
     setBusy(true); setError(null); setDone('');
     try {
-      const res = await postObservation({ featureId, attr, value, validUntil, photoId: photoId ?? undefined });
+      const res = await postObservation({ featureId, attr, value, validUntil, photoId: photoId && (!photoOnlyFor || photoOnlyFor === attr) ? photoId : undefined });
       onSaved(res.states);
       setDone('Dziękujemy. Zgłoszenie jest oznaczone jako niepotwierdzone, dopóki nie potwierdzi go inna osoba.');
       setRaw('');
@@ -99,7 +266,7 @@ export function ManualForm({ featureId, kind, presetAttr, photoId, onSaved }: Fo
   };
 
   return (
-    <form className="report-form" onSubmit={submit} noValidate>
+    <form className="report-form" ref={formRef} onSubmit={submit} noValidate>
       <label className="field">Co chcesz zgłosić?
         <select value={attr} onChange={(e) => change(() => { setAttr(e.target.value); setRaw(''); })}>
           <option value="">Wybierz…</option>

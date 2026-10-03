@@ -11,7 +11,7 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.skip { position: absolute; left: 8px; top: 8px; z-index: 30; padding: 12px 16px; min-height: 44px; background: var(--ink); color: #fff; border-radius: 8px; transform: translateY(-200%); }
+.skip { position: absolute; left: 8px; top: 8px; z-index: 40; box-shadow: 0 0 0 3px #fff; padding: 12px 16px; min-height: 44px; background: var(--ink); color: #fff; border-radius: 8px; transform: translateY(-200%); }
 .skip:focus { transform: none; }
 
 .boot { padding: 32px 16px; max-width: 480px; margin: 0 auto; display: grid; gap: 16px; }
@@ -85,6 +85,7 @@ main { outline: none; }
 .mapbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
 .mapbar .btn { min-height: 44px; font-size: 14px; padding: 4px 12px; }
 .geomsg { flex-basis: 100%; margin: 0; font-size: 14px; color: var(--blocked); }
+.geomsg span { display: block; }
 
 h1 { font-size: 22px; }
 main h2 { font-size: 18px; margin-top: 8px; }
@@ -120,9 +121,9 @@ main h2 { font-size: 18px; margin-top: 8px; }
 .pin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid #fff; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
 .pin-from { background: var(--ok); } .pin-to { background: var(--blocked); }
 .route-busy { margin: 0; font-weight: 600; }
-.route-busy:empty { display: none; }
+.route-busy:empty { margin: 0 0 -10px; min-height: 0; } /* region zostaje w drzewie dostępności, tylko bez odstępu */
 .route-live { display: grid; gap: 8px; }
-.route-live:empty { display: none; }
+.route-live:empty { margin: 0 0 -8px; padding: 0; min-height: 0; }
 
 .report { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 0; border-radius: 16px; background: var(--bg); color: var(--ink); overflow-y: auto; overscroll-behavior: contain; }
 .report::backdrop { background: rgba(17, 24, 39, .6); }
@@ -132,4 +133,19 @@ main h2 { font-size: 18px; margin-top: 8px; }
 .field { display: grid; gap: 4px; font-weight: 600; }
 .field select, .field input { min-height: 44px; font: inherit; font-weight: 400; border: 2px solid var(--ink); border-radius: 10px; padding: 0 10px; background: var(--bg); color: var(--ink); }
 .report-done { margin: 0; font-weight: 600; color: var(--ok); }
-.report-done:empty { display: none; }
+.report-done:empty { margin: 0 0 -12px; min-height: 0; }
+.photo { display: grid; gap: 10px; }
+.photo-pick-row { display: flex; align-items: center; gap: 12px; position: relative; }
+.photo-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.photo-pick { display: inline-flex; align-items: center; justify-content: center; }
+.photo-input:focus-visible + .photo-pick { outline: 3px solid var(--accent); outline-offset: 2px; }
+.photo-input:disabled + .photo-pick { background: var(--soft); border-color: var(--line); color: var(--muted); cursor: not-allowed; }
+.photo-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: var(--soft); }
+.photo-status { margin: 0; font-weight: 600; }
+.photo-status:empty { margin: 0 0 -10px; min-height: 0; }
+.report h3 { font-size: 16px; }
+.suggest { display: grid; gap: 8px; }
+.suggest-note { margin: 0; color: var(--muted); }
+.suggest-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.suggest-item { display: grid; gap: 6px; padding: 10px 12px; border: 2px dashed var(--difficult); border-radius: 10px; }
+.suggest-done { font-weight: 700; color: var(--ok); }

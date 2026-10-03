@@ -193,7 +193,7 @@ export function MapView({ hidden, onPick }: Props) {
       <div className="mapbar">
         <button type="button" className="btn" onClick={() => { setGeoMsg(''); geoRef.current?.trigger(); }}>Pokaż moją lokalizację</button>
         {tab === 'map' && <button type="button" className="btn" onClick={report}>Zgłoś</button>}
-        <p role="status" className="geomsg">{geoMsg}{reportMsg}</p>
+        <p role="status" className="geomsg"><span>{geoMsg}</span><span>{reportMsg}</span></p>
       </div>
       <div ref={el} className="map" aria-hidden="true" />
       <ul className="legend" aria-label="Legenda mapy">
