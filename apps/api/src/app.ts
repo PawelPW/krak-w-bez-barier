@@ -14,18 +14,25 @@ const authorOf = (c: any): string | null => {
   return id;
 };
 const isLonLat = (v: unknown): v is LonLat => Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number' && Number.isFinite(n));
-const isRule = (r: any) => r && typeof r.attr === 'string' && r.attr in ATTRS && (r.unless === undefined || r.unless in ATTRS);
+const isScalar = (v: unknown) => typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v));
+const isRule = (r: any) => r && typeof r.attr === 'string' && Object.hasOwn(ATTRS, r.attr) &&
+  (r.unless === undefined || (typeof r.unless === 'string' && Object.hasOwn(ATTRS, r.unless))) &&
+  (r.gt === undefined || (typeof r.gt === 'number' && Number.isFinite(r.gt))) &&
+  (r.lt === undefined || (typeof r.lt === 'number' && Number.isFinite(r.lt))) &&
+  (r.eq === undefined || isScalar(r.eq)) &&
+  (r.in === undefined || (Array.isArray(r.in) && r.in.length <= 50 && r.in.every(isScalar)));
 const isProfile = (p: any): p is Profile =>
   p && Array.isArray(p.hard) && Array.isArray(p.soft) && p.hard.length < 50 && p.soft.length < 50 &&
   p.hard.every(isRule) && p.soft.every((r: any) => isRule(r) && typeof r.cost === 'number' && r.cost > 0 && r.cost <= 100) &&
   typeof p.unknown_cost === 'number' && p.unknown_cost >= 1 && p.unknown_cost <= 10;
 
-app.get('/api/features', (c) => { c.header('Cache-Control', 'public, max-age=3600'); return c.json(store.snapshot); });
+const snapshotJson = JSON.stringify(store.snapshot);
+app.get('/api/features', (c) => c.body(snapshotJson, 200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }));
 app.get('/api/states', (c) => c.json(store.states));
 app.get('/api/profiles', (c) => c.json(PROFILES));
 
 app.get('/api/features/:id', (c) => {
-  const id = decodeURIComponent(c.req.param('id'));
+  const id = c.req.param('id');
   if (!store.featuresById.has(id)) return c.json({ message: 'Nie ma takiego miejsca' }, 404);
   return c.json(store.featureDetail(id, authorOf(c)));
 });
@@ -34,10 +41,12 @@ app.post('/api/observations', async (c) => {
   const author = authorOf(c);
   if (!author) return c.json({ message: 'Brak identyfikatora urządzenia' }, 401);
   const b = await c.req.json().catch(() => null);
-  if (!b || !store.featuresById.has(b.featureId)) return c.json({ message: 'Nieznane miejsce' }, 400);
+  if (!b || typeof b !== 'object') return c.json({ message: 'Nieprawidłowe zapytanie' }, 400);
+  if (!store.featuresById.has(b.featureId)) return c.json({ message: 'Nieznane miejsce' }, 400);
   if (!isValidValue(b.attr, b.value)) return c.json({ message: 'Nieprawidłowa wartość atrybutu' }, 400);
-  if (b.validUntil != null && Number.isNaN(Date.parse(b.validUntil))) return c.json({ message: 'Nieprawidłowa data ważności' }, 400);
-  const id = store.insertObservation({ featureId: b.featureId, attr: b.attr, value: b.value, source: 'user', authorId: author, validUntil: b.validUntil ?? null, photoId: typeof b.photoId === 'string' ? b.photoId : null });
+  if (b.validUntil != null && (typeof b.validUntil !== 'string' || Number.isNaN(Date.parse(b.validUntil)))) return c.json({ message: 'Nieprawidłowa data ważności' }, 400);
+  const validUntil = b.validUntil != null ? new Date(b.validUntil).toISOString() : null;
+  const id = store.insertObservation({ featureId: b.featureId, attr: b.attr, value: b.value, source: 'user', authorId: author, validUntil, photoId: typeof b.photoId === 'string' ? b.photoId : null });
   return c.json({ id, states: store.states[b.featureId] ?? {} });
 });
 
@@ -55,5 +64,10 @@ app.post('/api/observations/:id/verify', async (c) => {
 app.post('/api/route', async (c) => {
   const b = await c.req.json().catch(() => null);
   if (!b || !isLonLat(b.from) || !isLonLat(b.to) || !isProfile(b.profile)) return c.json({ message: 'Nieprawidłowe zapytanie o trasę' }, 400);
-  return c.json(planRoute(store.graph, store.featuresById, store.valuesOf, b.profile, b.from, b.to));
+  try {
+    return c.json(planRoute(store.graph, store.featuresById, store.valuesOf, b.profile, b.from, b.to));
+  } catch (err) {
+    console.error('route error:', (err as Error).message);
+    return c.json({ message: 'Nie udało się wyznaczyć trasy' }, 500);
+  }
 });

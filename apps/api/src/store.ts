@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildGraph, clampReputation, computeState, reputationDelta, valuesFromStates } from '@kbg/domain';
-import type { AttrValue, AttributeState, Feature, ObsForState, Snapshot, Source, StatesByAttr, StatesByFeature } from '@kbg/domain';
+import type { AttrValue, Feature, ObsForState, Snapshot, Source, StatesByAttr, StatesByFeature } from '@kbg/domain';
 import { dataDir, db, repoRoot } from './db';
 
 export { dataDir, db };
@@ -104,15 +104,14 @@ export function init(): void {
       for (const [attr, value] of Object.entries(f.attrs))
         ins.run(`osm:${f.id}:${attr}`, f.id, attr, JSON.stringify(value), f.osmTimestamp);
     db.exec('COMMIT');
-    db.exec('BEGIN');
-    for (const f of snapshot.features) for (const attr of Object.keys(f.attrs)) recompute(f.id, attr);
-    db.exec('COMMIT');
-  } else {
-    for (const r of db.prepare(`SELECT * FROM attribute_states`).all() as any[]) {
-      const s: AttributeState = { value: JSON.parse(r.value), confidence: r.confidence, lastConfirmed: r.last_confirmed, sources: JSON.parse(r.sources), unconfirmed: !!r.unconfirmed };
-      (states[r.feature_id] ??= {})[r.attr] = s;
-    }
   }
+  // Stany zawsze przeliczamy od zera: wygasłe zgłoszenia i przerwane zasiewy nie zostawiają śladu.
+  const pairs = db.prepare(`SELECT DISTINCT feature_id, attr FROM observations`).all() as any[];
+  db.exec('BEGIN');
+  db.exec('DELETE FROM attribute_states');
+  for (const k of Object.keys(states)) delete states[k];
+  for (const r of pairs) recompute(r.feature_id, r.attr);
+  db.exec('COMMIT');
   // Wygasanie zgłoszeń tymczasowych: co minutę przelicz atrybuty, których obserwacje właśnie wygasły.
   let last = new Date().toISOString();
   setInterval(() => {

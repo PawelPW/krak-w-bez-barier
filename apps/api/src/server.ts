@@ -8,12 +8,14 @@ import { init } from './store';
 
 init();
 
+app.all('/api/*', (c) => c.json({ message: 'Nie znaleziono' }, 404));
+
 const webDist = resolve(repoRoot, 'apps/web/dist');
 app.use('/photos/*', serveStatic({ root: dataDir }));
 if (existsSync(webDist)) {
   app.use('/*', serveStatic({ root: webDist }));
   const index = readFileSync(resolve(webDist, 'index.html'), 'utf8');
-  app.get('*', (c) => c.html(index));
+  app.get('*', (c) => (c.req.path.startsWith('/photos/') ? c.json({ message: 'Nie znaleziono' }, 404) : c.html(index)));
 }
 
 const port = Number(process.env.PORT ?? 3000);
