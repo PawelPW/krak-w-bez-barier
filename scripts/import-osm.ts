@@ -3,7 +3,6 @@ import { polylineLength } from '../packages/domain/src/index';
 import type { AttrValue, Feature, LonLat, Snapshot } from '../packages/domain/src/index';
 
 const BBOX = { south: 50.045, west: 19.925, north: 50.068, east: 19.955 };
-const B = `${BBOX.south},${BBOX.west},${BBOX.north},${BBOX.east}`;
 const FOOT = 'footway|path|pedestrian|steps|living_street|residential|service|cycleway';
 const ROADS = 'unclassified|tertiary|secondary|primary';
 
@@ -77,17 +76,20 @@ const API = 'https://api.openstreetmap.org/api/0.6/map.json';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 type Box = { south: number; west: number; north: number; east: number };
 
-async function fetchBox(b: Box, out: (RawWay | OsmNode)[]): Promise<void> {
+async function fetchBox(b: Box, out: (RawWay | OsmNode)[], depth = 0): Promise<void> {
   const res = await fetch(`${API}?bbox=${b.west},${b.south},${b.east},${b.north}`, {
     headers: { 'User-Agent': 'krakow-bez-granic-demo' },
   });
   await sleep(1000);
   if (res.status === 400) {
+    const body = await res.text();
+    if (depth >= 4 || b.north - b.south < 0.001 || b.east - b.west < 0.001)
+      throw new Error(`OSM API 400 at depth ${depth} for bbox ${JSON.stringify(b)}: ${body}`);
     const mx = (b.west + b.east) / 2, my = (b.south + b.north) / 2;
     for (const q of [
       { south: b.south, west: b.west, north: my, east: mx }, { south: b.south, west: mx, north: my, east: b.east },
       { south: my, west: b.west, north: b.north, east: mx }, { south: my, west: mx, north: b.north, east: b.east },
-    ]) await fetchBox(q, out);
+    ]) await fetchBox(q, out, depth + 1);
     return;
   }
   if (!res.ok) throw new Error(`OSM API ${res.status}: ${await res.text()}`);
