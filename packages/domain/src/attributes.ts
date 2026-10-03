@@ -27,11 +27,12 @@ const SMOOTHNESS: Record<string, string> = {
 const yes = (v: AttrValue) => v === true;
 const no = (v: AttrValue) => v === false;
 
+// unknownIsNeutral: atrybut prawie nieobecny w OSM; brak danych widać na karcie, ale nie podnosi kosztu ani nie zmienia statusu.
 export const ATTRS: Record<string, AttrDef> = {
   surface: { label: 'Nawierzchnia', type: 'enum', options: SURFACES, appliesTo: ['segment'], barrier: (v) => ROUGH_SURFACES.includes(String(v)), reportable: true },
-  smoothness: { label: 'Gładkość', type: 'enum', options: SMOOTHNESS, appliesTo: ['segment'], barrier: (v) => ['bad', 'very_bad', 'horrible'].includes(String(v)), reportable: true },
-  width_cm: { label: 'Szerokość', type: 'number', unit: 'cm', appliesTo: ['segment'], barrier: (v) => Number(v) < 90, reportable: true },
-  incline_pct: { label: 'Nachylenie', type: 'number', unit: '%', appliesTo: ['segment'], barrier: (v) => Number(v) > 6, reportable: true },
+  smoothness: { label: 'Gładkość', type: 'enum', options: SMOOTHNESS, appliesTo: ['segment'], barrier: (v) => ['bad', 'very_bad', 'horrible'].includes(String(v)), unknownIsNeutral: true, reportable: true },
+  width_cm: { label: 'Szerokość', type: 'number', unit: 'cm', appliesTo: ['segment'], barrier: (v) => Number(v) < 90, unknownIsNeutral: true, reportable: true },
+  incline_pct: { label: 'Nachylenie', type: 'number', unit: '%', appliesTo: ['segment'], barrier: (v) => Number(v) > 6, unknownIsNeutral: true, reportable: true },
   kerb_height_cm: { label: 'Wysokość krawężnika', type: 'number', unit: 'cm', appliesTo: ['node'], barrier: (v) => Number(v) > 3, reportable: true },
   steps: { label: 'Schody', type: 'bool', appliesTo: ['segment'], barrier: yes, reportable: true },
   ramp: { label: 'Podjazd', type: 'bool', appliesTo: ['segment'], barrier: no, reportable: true },

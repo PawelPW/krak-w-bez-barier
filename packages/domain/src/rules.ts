@@ -30,6 +30,8 @@ export type Values = Record<string, AttrValue | undefined>;
 /** Nadpisania progów: klucz `${'hard'|'soft'}:${attr}:${'gt'|'lt'}` → nowy próg. */
 export type Overrides = Record<string, number>;
 
+export const DIFFICULT_COST = 2;
+
 function matches(rule: Rule, v: AttrValue): boolean {
   if (rule.eq !== undefined) return v === rule.eq;
   if (rule.gt !== undefined) return typeof v === 'number' && v > rule.gt;
@@ -80,7 +82,7 @@ export function evaluate(profile: Profile, values: Values, kind: FeatureKind): E
 
 export function statusOf(ev: Evaluation): Status {
   if (ev.blocked) return 'blocked';
-  if (ev.reasons.some((r) => r.kind === 'soft' && (r.cost ?? 1) > 1)) return 'difficult';
+  if (ev.reasons.some((r) => r.kind === 'soft' && (r.cost ?? 1) >= DIFFICULT_COST)) return 'difficult';
   if (ev.reasons.some((r) => r.kind === 'unknown')) return 'unknown';
   return 'ok';
 }
