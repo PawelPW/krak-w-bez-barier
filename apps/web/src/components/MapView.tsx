@@ -177,11 +177,11 @@ export function MapView({ hidden, onPick }: Props) {
   return (
     <div className="mapwrap" style={hidden ? { visibility: 'hidden' } : undefined}>
       <a href="#main" className="skip">Pomiń mapę</a>
-      <div ref={el} className="map" aria-hidden="true" />
       <div className="mapbar">
         <button type="button" className="btn" onClick={() => { setGeoMsg(''); geoRef.current?.trigger(); }}>Pokaż moją lokalizację</button>
         <p role="status" className="geomsg">{geoMsg}</p>
       </div>
+      <div ref={el} className="map" aria-hidden="true" />
       <ul className="legend" aria-label="Legenda mapy">
         {STATUSES.map((s) => (
           <li key={s}>

@@ -36,6 +36,8 @@ function Slider({ id, label, unit, min, max, step, value, onCommit }: { id: stri
 
 export function ProfileView() {
   const { choice, setChoice } = useApp();
+  // Zmiana klucza odmontowuje suwaki, co anuluje ich oczekujące (debounced) zapisy.
+  const [resetN, setResetN] = useState(0);
   const base = profileById(choice.id);
   const rows: { tier: 'hard' | 'soft'; rule: Rule; key: string; both: boolean }[] = [];
   for (const tier of ['hard', 'soft'] as const) {
@@ -64,12 +66,12 @@ export function ProfileView() {
             const r = RANGE[rule.attr];
             const def = rule.gt ?? rule.lt ?? 0;
             return (
-              <Slider key={`${choice.id}:${key}`} id={`thr-${key.replace(/:/g, '-')}`} label={sliderLabel(rule.attr, tier, both)} unit={r.unit}
+              <Slider key={`${choice.id}:${key}:${resetN}`} id={`thr-${key.replace(/:/g, '-')}`} label={sliderLabel(rule.attr, tier, both)} unit={r.unit}
                 min={r.min} max={r.max} step={r.step} value={choice.overrides[key] ?? def}
                 onCommit={(n) => setChoice({ id: choice.id, overrides: { ...choice.overrides, [key]: n } })} />
             );
           })}
-          <button type="button" className="btn" onClick={() => setChoice({ id: choice.id, overrides: {} })}>Przywróć domyślne progi</button>
+          <button type="button" className="btn" onClick={() => { setResetN((n) => n + 1); setChoice({ id: choice.id, overrides: {} }); }}>Przywróć domyślne progi</button>
         </section>
       )}
       <p>Profil jest zapisany tylko na tym urządzeniu. Wysyłamy go wyłącznie przy wyznaczaniu trasy i nie zapisujemy na serwerze.</p>

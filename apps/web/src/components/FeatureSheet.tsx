@@ -94,7 +94,7 @@ export function FeatureSheet() {
           <ul>
             {photos.map((o) => (
               <li key={o.photoId}>
-                <img src={`/photos/photos/${o.photoId}.jpg`} alt={`Zdjęcie odcinka: ${titleOf(feature)}`} loading="lazy" />
+                <img src={`/photos/${o.photoId}.jpg`} alt={`Zdjęcie odcinka: ${titleOf(feature)}`} loading="lazy" />
                 <span>zdjęcie niezweryfikowane, {formatDate(o.observedAt)}</span>
               </li>
             ))}

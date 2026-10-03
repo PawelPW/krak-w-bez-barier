@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import { distanceToFeatureM } from '@kbg/domain';
 import type { Feature, LonLat, Status } from '@kbg/domain';
 import { useApp } from '../state';
-import { STATUS_LABEL } from '../status';
 
 type KindFilter = 'all' | 'crossing' | 'segment';
 const LIMIT = 60;
-const KIND_TITLE = { crossing: 'Przejście dla pieszych', kerb: 'Krawężnik', segment: 'Odcinek bez nazwy' } as const;
+const KIND_LABEL = { crossing: 'Przejście dla pieszych', kerb: 'Krawężnik', segment: 'Odcinek' } as const;
+const titleOf = (f: Feature) => f.name ? `${KIND_LABEL[f.kind]}: ${f.name}` : f.kind === 'segment' ? 'Odcinek bez nazwy' : KIND_LABEL[f.kind];
 const PHRASE: Record<Status, string> = {
   blocked: 'Zablokowane dla Twojego profilu',
   difficult: 'Utrudnione dla Twojego profilu',
@@ -15,10 +15,12 @@ const PHRASE: Record<Status, string> = {
 };
 
 export function ListView() {
-  const { features, userPos, mapCenter, statusFor, evalFor, select } = useApp();
+  const { features, userPos, getMapCenter, statusFor, evalFor, select } = useApp();
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [kind, setKind] = useState<KindFilter>('all');
-  const ref: LonLat = userPos ?? mapCenter;
+  // Środek mapy czytany raz przy pokazaniu listy (mapa jest wtedy ukryta, więc się nie zmienia).
+  const [center] = useState<LonLat>(getMapCenter);
+  const ref: LonLat = userPos ?? center;
 
   // Odległości liczone raz na zmianę punktu odniesienia; potem tylko lazy filtrowanie po statusie.
   const sorted = useMemo(() => {
@@ -59,16 +61,15 @@ export function ListView() {
         ))}
       </fieldset>
       <p role="status" className="count">Pozycji na liście: {items.length}{items.length >= LIMIT ? ' (najbliższe)' : ''}</p>
-      <ul className="places">
+      <ul className="places" role="list">
         {items.map(({ f, dist, status }) => {
           const reasons = evalFor(f).reasons.map((r) => r.text);
           return (
             <li key={f.id}>
               <button type="button" className={`place place-${status}`} onClick={() => select(f.id)}>
-                <span className="place-title">{f.name ?? KIND_TITLE[f.kind]}, {Math.round(dist)} m.</span>{' '}
+                <span className="place-title">{titleOf(f)}, {Math.round(dist)} m.</span>{' '}
                 <span className="place-status">{PHRASE[status]}{reasons.length ? ':' : '.'}</span>
                 {reasons.length > 0 && <span className="place-reasons"> {reasons.join('. ')}.</span>}
-                <span className="sr-only"> Status: {STATUS_LABEL[status]}.</span>
               </button>
             </li>
           );

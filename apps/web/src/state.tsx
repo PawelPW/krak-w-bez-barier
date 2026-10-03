@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { evaluate, mergeOverrides, profileById, statusOf, valuesFromStates } from '@kbg/domain';
 import type { Evaluation, Feature, LonLat, Profile, RouteResult, StatesByAttr, StatesByFeature, Status } from '@kbg/domain';
@@ -30,7 +30,8 @@ export interface AppValue {
   /** Który koniec trasy zostanie ustawiony następnym dotknięciem mapy (zakładka Trasa). */
   pickTarget: 'from' | 'to' | null;
   setPickTarget(t: 'from' | 'to' | null): void;
-  mapCenter: LonLat;
+  /** Środek mapy trzymany w ref: zmiana nie renderuje konsumentów, czyta go tylko ten, kto go potrzebuje. */
+  getMapCenter(): LonLat;
   setMapCenter(p: LonLat): void;
   userPos: LonLat | null;
   setUserPos(p: LonLat | null): void;
@@ -60,8 +61,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [routeFrom, setFrom] = useState<LonLat | null>(null);
   const [routeTo, setTo] = useState<LonLat | null>(null);
   const [pickTarget, setPickTarget] = useState<'from' | 'to' | null>(null);
-  const [mapCenter, setMapCenter] = useState<LonLat>([19.940, 50.057]);
+  const mapCenterRef = useRef<LonLat>([19.940, 50.057]);
+  const getMapCenter = useCallback(() => mapCenterRef.current, []);
+  const setMapCenter = useCallback((p: LonLat) => { mapCenterRef.current = p; }, []);
   const [userPos, setUserPos] = useState<LonLat | null>(null);
+
+  // Wskazywanie punktu na mapie ma sens tylko w zakładce Trasa.
+  useEffect(() => { if (tab !== 'route') setPickTarget(null); }, [tab]);
 
   useEffect(() => {
     let live = true;
@@ -88,8 +94,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppValue | null>(() => data && ({
     features: data.features, featuresById, bbox: data.bbox, states, setFeatureStates, profile, choice, setChoice,
     tab, setTab, selectedId, select, route, setRoute, statusFor, evalFor,
-    routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, setPickTarget, mapCenter, setMapCenter, userPos, setUserPos,
-  }), [data, featuresById, states, setFeatureStates, profile, choice, setChoice, tab, selectedId, select, route, statusFor, evalFor, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, mapCenter, userPos]);
+    routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, setPickTarget, getMapCenter, setMapCenter, userPos, setUserPos,
+  }), [data, featuresById, states, setFeatureStates, profile, choice, setChoice, tab, selectedId, select, route, statusFor, evalFor, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, getMapCenter, setMapCenter, userPos]);
 
   if (error) {
     return (

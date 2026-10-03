@@ -23,9 +23,16 @@ export function RouteView() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'alert' | 'info'; text: string } | null>(null);
   const [geoMsg, setGeoMsg] = useState('');
+  // Wybrane „znane miejsce” per pole (indeks w `places` jako tekst, '' = placeholder).
+  const [placeSel, setPlaceSel] = useState<Record<Which, string>>({ from: '', to: '' });
+  // Numer bieżącego żądania trasy: spóźniona odpowiedź dla innych punktów/profilu jest odrzucana.
+  const reqId = useRef(0);
   const sentenceRef = useRef<HTMLParagraphElement>(null);
   // Wynik pojawia się pod formularzem w niskim panelu: przewiń, żeby zdanie było widoczne.
   useEffect(() => { if (route) sentenceRef.current?.scrollIntoView({ block: 'start' }); }, [route]);
+
+  useEffect(() => { reqId.current++; setBusy(false); }, [routeFrom, routeTo, profile]);
+  useEffect(() => () => { reqId.current++; }, []);
 
   const places = useMemo(() => {
     const byName = new Map<string, LonLat>();
@@ -50,19 +57,21 @@ export function RouteView() {
 
   const locate = () => {
     setGeoMsg('');
-    if (!navigator.geolocation) { setGeoMsg('Brak zgody na lokalizację. Wskaż start na mapie.'); return; }
+    if (!navigator.geolocation) { setGeoMsg('Nie udało się ustalić pozycji. Wskaż start na mapie.'); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => { const p: LonLat = [pos.coords.longitude, pos.coords.latitude]; setUserPos(p); set('from', p); },
-      () => setGeoMsg('Brak zgody na lokalizację. Wskaż start na mapie.'),
+      (err) => setGeoMsg(err.code === err.PERMISSION_DENIED ? 'Brak zgody na lokalizację. Wskaż start na mapie.' : 'Nie udało się ustalić pozycji. Wskaż start na mapie.'),
       { enableHighAccuracy: true, timeout: 15000 },
     );
   };
 
   const go = async () => {
     if (!routeFrom || !routeTo) return;
+    const id = ++reqId.current;
     setBusy(true); setMessage(null); setRoute(null);
     try {
       const res = await postRoute(routeFrom, routeTo, profile);
+      if (id !== reqId.current) return;
       if ('error' in res) {
         setMessage({ kind: 'info', text: res.error === 'out_of_area' ? 'Ten punkt jest poza obszarem dema (Stare Miasto i Kazimierz).' : 'Nie znaleziono połączenia między tymi punktami.' });
       } else if (res.coords.length === 0 || res.summary.lengthM === 0) {
@@ -71,8 +80,8 @@ export function RouteView() {
         setRoute(res);
       }
     } catch (e) {
-      setMessage({ kind: 'alert', text: (e as Error).message });
-    } finally { setBusy(false); }
+      if (id === reqId.current) setMessage({ kind: 'alert', text: (e as Error).message });
+    } finally { if (id === reqId.current) setBusy(false); }
   };
 
   if (pickTarget) {
@@ -84,7 +93,12 @@ export function RouteView() {
     );
   }
 
-  const field = (w: Which, title: string, text: string, value: LonLat | null) => (
+  const field = (w: Which, title: string, text: string, value: LonLat | null) => {
+    // Wybór obowiązuje tylko dopóki punkt jest nadal tym miejscem (inaczej: ustawiony z mapy lub „Moja pozycja”).
+    const sel = placeSel[w];
+    const at = sel === '' ? undefined : places[Number(sel)]?.at;
+    const chosen = at && value && at[0] === value[0] && at[1] === value[1] ? sel : '';
+    return (
     <fieldset className="point">
       <legend>{title}</legend>
       <p className="point-text">{text}</p>
@@ -93,13 +107,21 @@ export function RouteView() {
         {w === 'from' && <button type="button" className="btn" onClick={locate}>Moja pozycja</button>}
       </div>
       <label className="select-label">Wybierz znane miejsce
-        <select value="" onChange={(e) => { const p = places[Number(e.target.value)]; if (p) set(w, p.at); }}>
-          <option value="">{value ? 'Zmień miejsce…' : 'Wybierz…'}</option>
+        <select aria-label={`${title}: wybierz znane miejsce`} value={chosen}
+          onChange={(e) => {
+            const v = e.target.value;
+            const p = v === '' ? undefined : places[Number(v)];
+            if (!p) return;
+            set(w, p.at);
+            setPlaceSel((s) => ({ ...s, [w]: v }));
+          }}>
+          <option value="">Wybierz…</option>
           {places.map((p, i) => <option key={p.label} value={i}>{p.label}</option>)}
         </select>
       </label>
     </fieldset>
-  );
+    );
+  };
 
   return (
     <div className="panel-scroll">
@@ -109,21 +131,28 @@ export function RouteView() {
       {geoMsg && <p role="alert" className="error">{geoMsg}</p>}
       {field('to', 'Cel', toText, routeTo)}
       <button type="button" className="btn btn-primary btn-block" disabled={!routeFrom || !routeTo || busy} onClick={go}>{busy ? 'Wyznaczanie…' : 'Wyznacz trasę'}</button>
-      <div aria-live="polite" className="route-result">
-        {message && (message.kind === 'alert' ? <p role="alert" className="error">{message.text}</p> : <p>{message.text}</p>)}
+      <p role="status" className="route-busy">{busy ? 'Wyznaczanie trasy…' : ''}</p>
+      <div className="route-result">
+        <div aria-live="polite" className="route-live">
+          {message && (message.kind === 'alert' ? <p role="alert" className="error">{message.text}</p> : <p>{message.text}</p>)}
+          {route && (
+            <>
+              {route.violatesHardRules && (
+                <>
+                  <p role="alert" className="error">Nie ma trasy spełniającej Twoje wymagania. Ta trasa łamie je w tych miejscach:</p>
+                  <ul>{route.violated.map((r, i) => <li key={i}>{r.text}</li>)}</ul>
+                </>
+              )}
+              <p className="sentence" ref={sentenceRef}>{route.sentence}</p>
+            </>
+          )}
+        </div>
         {route && (
           <>
-            {route.violatesHardRules && (
-              <>
-                <p role="alert" className="error">Nie ma trasy spełniającej Twoje wymagania. Ta trasa łamie je w tych miejscach:</p>
-                <ul>{route.violated.map((r, i) => <li key={i}>{r.text}</li>)}</ul>
-              </>
-            )}
-            <p className="sentence" ref={sentenceRef}>{route.sentence}</p>
             <h2>Nawierzchnie</h2>
             <ul>{Object.entries(route.summary.surfaces).map(([k, m]) => <li key={k}>{k}: {Math.round(m)} m</li>)}</ul>
             <h2>Krok po kroku</h2>
-            <ol className="steps">
+            <ol className="steps" role="list">
               {route.steps.map((s, i) => (
                 <li key={i}><button type="button" className="step" onClick={() => select(s.featureId)}>{s.text}</button></li>
               ))}
