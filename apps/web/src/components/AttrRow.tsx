@@ -60,7 +60,7 @@ export function AttrRow({ attr, state, observations, onVerify }: Props) {
           <button type="button" className="btn" aria-label={`Nieprawda: ${voteName}`} onClick={() => onVerify(current.id, false)}>Nieprawda</button>
         </div>
       )}
-      {expired && <p className="attr-warn">Zgłoszenie wygasło {formatDate(expired.validUntil ?? expired.observedAt)}. Czy nadal aktualne?</p>}
+      {expired && !mine.some((o) => !o.expired) && <p className="attr-warn">Zgłoszenie wygasło {formatDate(expired.validUntil ?? expired.observedAt)}. Czy nadal aktualne?</p>}
     </li>
   );
 }

@@ -11,12 +11,15 @@ const TABS: { id: Tab; label: string }[] = [
 export function TabBar() {
   const { tab, setTab } = useApp();
   return (
-    <nav className="tabbar" aria-label="Główna nawigacja">
-      {TABS.map((t) => (
-        <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-          {t.label}
-        </button>
-      ))}
-    </nav>
+    <>
+      <p className="credit"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">Dane mapy © OpenStreetMap contributors</a></p>
+      <nav className="tabbar" aria-label="Główna nawigacja">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </nav>
+    </>
   );
 }

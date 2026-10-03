@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, MapGeoJSONFeature } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -21,6 +21,10 @@ export function MapView({ hidden, onPick }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const readyRef = useRef(false);
+  const geoRef = useRef<maplibregl.GeolocateControl | null>(null);
+  const selRef = useRef<string | null>(selectedId);
+  selRef.current = selectedId;
+  const [geoMsg, setGeoMsg] = useState('');
   const live = useRef({ tab, select, onPick });
   live.current = { tab, select, onPick };
 
@@ -54,10 +58,24 @@ export function MapView({ hidden, onPick }: Props) {
       style: 'https://tiles.openfreemap.org/styles/positron',
       center: [19.940, 50.057],
       zoom: 15,
+      keyboard: false,
       maxBounds: [[bbox.west - 0.01, bbox.south - 0.01], [bbox.east + 0.01, bbox.north + 0.01]],
     });
     mapRef.current = map;
-    map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false }), 'top-right');
+    const geo = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false });
+    geoRef.current = geo;
+    map.addControl(geo, 'top-right');
+    geo.on('geolocate', () => setGeoMsg(''));
+    geo.on('error', (e: GeolocationPositionError) => setGeoMsg(e.code === 1 ? 'Brak zgody na lokalizację.' : 'Nie udało się ustalić lokalizacji.'));
+    // Mapa jest aria-hidden: nic w jej wnętrzu nie może być osiągalne klawiaturą.
+    const untab = () => {
+      const root = el.current;
+      if (!root) return;
+      root.querySelectorAll<HTMLElement>('.maplibregl-canvas, .maplibregl-canvas-container, .maplibregl-ctrl button, a, summary, [tabindex="0"]')
+        .forEach((n) => { if (n.getAttribute('tabindex') !== '-1') n.setAttribute('tabindex', '-1'); });
+    };
+    untab();
+    map.on('idle', untab);
 
     map.on('load', () => {
       map.addSource('features', { type: 'geojson', data: EMPTY });
@@ -74,12 +92,26 @@ export function MapView({ hidden, onPick }: Props) {
         id: 'selected', type: 'line', source: 'features', filter: ['==', ['get', 'id'], ''],
         layout: { 'line-cap': 'round' }, paint: { 'line-color': '#111827', 'line-width': 2, 'line-gap-width': 6, 'line-opacity': 0.9 },
       });
+      // Węzły rozróżnialne nie tylko kolorem: ok = pełne z białą obwódką, difficult = puste kółko (gruba pomarańczowa obwódka),
+      // blocked = pełne z grubą ciemnoczerwoną obwódką, unknown = półprzezroczyste szare.
+      const st = (ok: unknown, difficult: unknown, blocked: unknown, unknown_: unknown) =>
+        ['match', ['get', 'status'], 'ok', ok, 'difficult', difficult, 'blocked', blocked, unknown_] as never;
       map.addLayer({
         id: 'nodes', type: 'circle', source: 'features', minzoom: 15,
         filter: ['!=', ['get', 'kind'], 'segment'],
-        paint: { 'circle-radius': 6, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff',
-          'circle-color': ['match', ['get', 'status'], 'ok', '#1a7f37', 'difficult', '#b35900', 'blocked', '#b3261e', '#6b7280'] },
+        paint: {
+          'circle-radius': 6,
+          'circle-stroke-width': st(2, 3, 3, 2),
+          'circle-stroke-color': st('#ffffff', '#b35900', '#5f1410', '#ffffff'),
+          'circle-color': st('#1a7f37', '#ffffff', '#b3261e', 'rgba(107,114,128,0.6)'),
+        },
       });
+      map.addLayer({
+        id: 'selected-node', type: 'circle', source: 'features', minzoom: 15,
+        filter: ['==', ['get', 'id'], selRef.current ?? ''],
+        paint: { 'circle-radius': 12, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-width': 3, 'circle-stroke-color': '#111827' },
+      });
+      map.setFilter('selected', ['==', ['get', 'id'], selRef.current ?? '']);
       map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 10 } });
       map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1d4ed8', 'line-width': 7 } });
       readyRef.current = true;
@@ -104,7 +136,9 @@ export function MapView({ hidden, onPick }: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
-    map.setFilter('selected', ['==', ['get', 'id'], selectedId ?? '']);
+    const f: ['==', ['get', string], string] = ['==', ['get', 'id'], selectedId ?? ''];
+    map.setFilter('selected', f);
+    map.setFilter('selected-node', f);
   }, [selectedId]);
 
   useEffect(() => {
@@ -127,6 +161,10 @@ export function MapView({ hidden, onPick }: Props) {
     <div className="mapwrap" style={hidden ? { visibility: 'hidden' } : undefined}>
       <a href="#main" className="skip">Pomiń mapę</a>
       <div ref={el} className="map" aria-hidden="true" />
+      <div className="mapbar">
+        <button type="button" className="btn" onClick={() => { setGeoMsg(''); geoRef.current?.trigger(); }}>Pokaż moją lokalizację</button>
+        <p role="status" className="geomsg">{geoMsg}</p>
+      </div>
       <ul className="legend" aria-label="Legenda mapy">
         {STATUSES.map((s) => (
           <li key={s}>

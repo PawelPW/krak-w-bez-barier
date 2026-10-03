@@ -13,25 +13,41 @@ const titleOf = (f: Feature) => f.name ?? KIND_TITLE[f.kind];
 export function FeatureSheet() {
   const { selectedId, featuresById, select, states, profile, statusFor, evalFor, setFeatureStates } = useApp();
   const feature = selectedId ? featuresById.get(selectedId) : undefined;
-  const [observations, setObservations] = useState<ObservationView[]>([]);
+  const [detail, setDetail] = useState<{ id: string; list: ObservationView[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const selRef = useRef<string | null>(selectedId);
+  selRef.current = selectedId;
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  // Obserwacje innej cechy nigdy nie są pokazywane (żadnych migających przycisków głosowania).
+  const observations = detail && detail.id === selectedId ? detail.list : [];
 
-  const load = useCallback((id: string, isLive: () => boolean) => {
+  const load = useCallback((id: string) => {
     getDetail(id).then(
-      (d) => { if (isLive()) { setObservations(d.observations); setError(null); } },
-      (e: Error) => { if (isLive()) setError(e.message); },
+      (d) => { if (selRef.current === id) { setDetail({ id, list: d.observations }); setError(null); } },
+      (e: Error) => { if (selRef.current === id) setError(e.message); },
     );
   }, []);
 
   useEffect(() => {
-    setObservations([]);
     setError(null);
-    if (!selectedId) return;
-    let live = true;
-    load(selectedId, () => live);
+    if (!selectedId) {
+      if (wasOpen.current) {
+        wasOpen.current = false;
+        const o = opener.current;
+        opener.current = null;
+        const ok = o && document.contains(o) && !o.closest('[aria-hidden="true"]');
+        (ok ? o : document.getElementById('main'))?.focus();
+      }
+      return;
+    }
+    if (!wasOpen.current) {
+      wasOpen.current = true;
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    load(selectedId);
     heading.current?.focus({ preventScroll: true });
-    return () => { live = false; };
   }, [selectedId, load]);
 
   useEffect(() => {
@@ -47,7 +63,7 @@ export function FeatureSheet() {
     try {
       const res = await postVerify(obsId, agree);
       setFeatureStates(feature.id, res.states);
-      load(feature.id, () => true);
+      load(feature.id);
     } catch (e) { setError((e as Error).message); }
   };
 
