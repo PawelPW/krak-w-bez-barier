@@ -3,3 +3,5 @@ export * from './attributes';
 export * from './geo';
 export * from './rules';
 export * from './profiles';
+export * from './confidence';
+export * from './reputation';
