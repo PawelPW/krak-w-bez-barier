@@ -5,3 +5,5 @@ export * from './rules';
 export * from './profiles';
 export * from './confidence';
 export * from './reputation';
+export * from './graph';
+export * from './route';
