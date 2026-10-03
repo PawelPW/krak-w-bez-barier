@@ -59,10 +59,13 @@ scripts/import-osm.ts   Overpass → data/krakow.json
 `scripts/import-osm.ts` wykonuje jedno zapytanie Overpass dla prostokąta obejmującego Stare Miasto i Kazimierz.
 
 - Drogi: `highway` w `footway`, `path`, `pedestrian`, `steps`, `living_street`, `residential`, `service`, `cycleway`.
+- Ulice wyższych klas (`unclassified`, `tertiary`, `secondary`, `primary`) wchodzą do grafu, o ile nie mają `sidewalk=no/none/separate`. Bez nich graf rozpada się tam, gdzie chodnik jest tylko tagiem.
+- Drogi z `access=private/no` lub `foot=no` są pomijane.
 - Węzły: `highway=crossing`, `barrier=kerb`.
 - Każda droga jest cięta na segmenty w węzłach wspólnych z innymi drogami i na przejściach. Segment to jedna krawędź grafu i jeden Feature.
 - Chodnik jako tag na ulicy (`sidewalk=*`) jest przypinany do segmentu ulicy bez rozróżniania stron.
 - Plac (`highway=pedestrian` + `area=yes`) dostaje atrybut `open_area=true`.
+- `steps`, `cycleway` i `open_area` wynikają z typu drogi, więc każdy segment ma je jako znane (prawda lub fałsz).
 - Mapowanie tagów na atrybuty: `surface`, `smoothness`, `width` → `width_cm`, `incline` → `incline_pct`, `kerb` → `kerb_height_cm` (lowered 3, flush 0, raised 12), `highway=steps` → `steps`, `ramp`, `handrail`, `tactile_paving`, `traffic_signals:sound` → `signal_sound`, `traffic_signals:vibration` → `signal_vibration`, `lit`, `highway=cycleway` lub `bicycle=designated` → `cycleway`.
 - Brak tagu nie tworzy obserwacji.
 
@@ -129,7 +132,7 @@ Format profilu jak w briefie:
 
 - Operatory: `eq`, `gt`, `lt`, `in`, modyfikator `unless`.
 - `evaluate(profile, states)` zwraca `{ blocked, costMultiplier, reasons[] }`. Każdy powód niesie atrybut, wartość, próg i rodzaj (twardy / miękki / brak danych).
-- Reguły miękkie mnożą koszt przez `cost`. Brak danych dla atrybutu wymienionego w dowolnej regule mnoży koszt przez `unknown_cost` raz na atrybut.
+- Reguły miękkie mnożą koszt przez `cost`. Brak danych dla atrybutu wymienionego w dowolnej regule mnoży koszt przez `unknown_cost` raz na atrybut, o ile atrybut dotyczy danego rodzaju miejsca (odcinek albo węzeł). Wyjątki, dla których brak danych jest neutralny: `temporary_obstacle`, `guidance_line`, `bench`.
 - `temporary_obstacle=true` jest regułą twardą w profilach wózkowych i miękką w pozostałych.
 - Profile: `wheelchair_manual`, `wheelchair_electric`, `blind`, `senior`, `stroller`, `skates`, `bike`. Progi robocze z briefu.
 - Nadpisania użytkownika to scalenie progów z profilem bazowym, zapisane w `localStorage`.
@@ -149,13 +152,14 @@ Format profilu jak w briefie:
 
 | Endpoint | Rola |
 |---|---|
-| `GET /features?bbox=` | Feature z bieżącymi AttributeState |
-| `GET /features/:id` | szczegóły: stany, obserwacje, weryfikacje, zdjęcia |
-| `POST /observations` | zgłoszenie ręczne lub potwierdzenie sugestii AI |
-| `POST /observations/:id/verify` | zgoda / zaprzeczenie |
-| `POST /photos` | wgranie zdjęcia, klasyfikacja AI, sugestie |
-| `POST /route` | trasa dla profilu |
-| `GET /profiles` | profile bazowe |
+| `GET /api/features` | cała migawka Feature (obszar dema jest mały, klient ocenia profil lokalnie) |
+| `GET /api/states` | bieżące AttributeState wszystkich Feature |
+| `GET /api/features/:id` | szczegóły: stany, obserwacje, weryfikacje, zdjęcia |
+| `POST /api/observations` | zgłoszenie ręczne lub potwierdzenie sugestii AI |
+| `POST /api/observations/:id/verify` | zgoda / zaprzeczenie |
+| `POST /api/photos` | wgranie zdjęcia, klasyfikacja AI, sugestie |
+| `POST /api/route` | trasa dla profilu |
+| `GET /api/profiles` | profile bazowe |
 
 ## Zgłoszenie ze zdjęciem i AI
 
