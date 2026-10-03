@@ -113,7 +113,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Z cache'u (Service Worker, HTTP) dane też „wczytują się”: znacznik zapisujemy tylko, gdy żądanie poszło przez sieć.
         // Bez Resource Timing zostaje starsze zachowanie (navigator.onLine).
         const net = viaNetwork('/api/states');
-        if (net ?? navigator.onLine) writeLastLoad(Date.now());
+        // transferSize 0 przy navigator.onLine === true też traktujemy jak sieć (Service Worker NetworkFirst bywa raportowany jako 0).
+        if (net || navigator.onLine) writeLastLoad(Date.now());
       },
       (e: Error) => { if (live) setError(e.message); },
     );
@@ -154,6 +155,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } else if (res.coords.length === 0 || res.summary.lengthM === 0) {
         fail({ kind: 'info', text: 'Start i cel to to samo miejsce. Wskaż dwa różne punkty.' });
       } else {
+        const prev = latest.current.route;
+        // Automatyczne przeliczenie dało tę samą trasę: zostaje poprzedni obiekt (mapa się nie dopasowuje), bez komunikatu.
+        if (auto && prev && prev.sentence === res.sentence && prev.coords.length === res.coords.length
+          && prev.coords.every((c, i) => c[0] === res.coords[i][0] && c[1] === res.coords[i][1])) return;
         setRoute(res);
         if (auto) setRouteNotice(ROUTE_CHANGED);
       }

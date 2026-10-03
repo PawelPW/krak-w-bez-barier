@@ -25,13 +25,14 @@ const delState = db.prepare(`DELETE FROM attribute_states WHERE feature_id = ? A
 
 export function recompute(featureId: string, attr: string, now = new Date()): void {
   const all = qObs.all(featureId, attr) as any[];
-  // Liczy się tylko najnowsze zgłoszenie każdego autora oraz najnowsza obserwacja AI; starsze zostają w historii.
+  // Liczy się najnowsze zgłoszenie każdego autora, najnowsza obserwacja AI i każda obserwacja AI potwierdzona przez człowieka; reszta zostaje w historii.
   const latest = new Map<string, any>();
   for (const r of all) {
     const key = r.source === 'user' ? `user:${r.author_id}` : r.source === 'ai' ? 'ai' : `osm:${r.id}`;
     const cur = latest.get(key);
     if (!cur || r.observed_at > cur.observed_at) latest.set(key, r);
   }
+  for (const r of all) if (r.source === 'ai' && r.agree_n > 0) latest.set(`ai:${r.id}`, r);
   const rows = [...latest.values()];
   const obs: ObsForState[] = rows.map((r) => ({
     value: JSON.parse(r.value), source: r.source as Source,
@@ -102,7 +103,7 @@ export function featureDetail(featureId: string, authorId: string | null) {
   for (const r of rows) {
     if (r.source === 'osm') continue;
     const key = `${r.attr}|${r.source === 'ai' ? 'ai' : r.author_id}`;
-    if (seen.has(key)) superseded.add(r.id); else seen.add(key);
+    if (seen.has(key)) { if (!(r.source === 'ai' && r.agree > 0)) superseded.add(r.id); } else seen.add(key); // potwierdzona obserwacja AI nigdy nie jest zastąpiona
   }
   return {
     states: (states[featureId] ?? {}) as StatesByAttr,
