@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { evaluate, mergeOverrides, profileById, statusOf, valuesFromStates } from '@kbg/domain';
 import type { Evaluation, Feature, LonLat, Profile, RouteResult, StatesByAttr, StatesByFeature, Status } from '@kbg/domain';
 import { getSnapshot, getStates, postRoute } from './api';
-import { loadProfileChoice, saveProfileChoice } from './profileStore';
+import { loadBasemap, loadProfileChoice, saveBasemap, saveProfileChoice } from './profileStore';
+import type { BasemapId } from './basemaps';
 import type { ProfileChoice } from './profileStore';
 
 export type Tab = 'map' | 'list' | 'route' | 'profile';
@@ -17,6 +18,9 @@ export interface AppValue {
   profile: Profile;
   choice: ProfileChoice;
   setChoice(c: ProfileChoice): void;
+  /** Podkład mapy: jedno źródło prawdy dla przełącznika, mapy i linii atrybucji. */
+  basemap: BasemapId;
+  setBasemap(id: BasemapId): void;
   tab: Tab;
   setTab(t: Tab): void;
   selectedId: string | null;
@@ -81,6 +85,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [choice, setChoiceRaw] = useState<ProfileChoice>(loadProfileChoice);
+  const [basemap, setBasemapRaw] = useState<BasemapId>(loadBasemap);
+  const setBasemap = useCallback((id: BasemapId) => { saveBasemap(id); setBasemapRaw(id); }, []);
   const [tab, setTab] = useState<Tab>('map');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [route, setRoute] = useState<RouteResult | null>(null);
@@ -180,9 +186,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppValue | null>(() => data && ({
     features: data.features, featuresById, bbox: data.bbox, states, setFeatureStates, profile, choice, setChoice,
-    tab, setTab, selectedId, select, route, setRoute, routeBusy, routeMessage, routeNotice, computeRoute, statusFor, evalFor,
+    basemap, setBasemap, tab, setTab, selectedId, select, route, setRoute, routeBusy, routeMessage, routeNotice, computeRoute, statusFor, evalFor,
     routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, setPickTarget, getMapCenter, setMapCenter, userPos, setUserPos, reportFor, setReportFor,
-  }), [data, featuresById, states, setFeatureStates, profile, choice, setChoice, tab, selectedId, select, route, routeBusy, routeMessage, routeNotice, computeRoute, statusFor, evalFor, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, getMapCenter, setMapCenter, userPos, reportFor]);
+  }), [data, featuresById, states, setFeatureStates, profile, choice, setChoice, basemap, setBasemap, tab, selectedId, select, route, routeBusy, routeMessage, routeNotice, computeRoute, statusFor, evalFor, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, getMapCenter, setMapCenter, userPos, reportFor]);
 
   if (error) {
     return (

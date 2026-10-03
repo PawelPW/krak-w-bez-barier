@@ -1,4 +1,6 @@
 import type { Overrides } from '@kbg/domain';
+import { isBasemapId } from './basemaps';
+import type { BasemapId } from './basemaps';
 const get = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const set = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* tryb prywatny */ } };
 
@@ -25,3 +27,9 @@ export function loadProfileChoice(): ProfileChoice {
   return { id: 'wheelchair_manual', overrides: {} };
 }
 export const saveProfileChoice = (c: ProfileChoice) => set('kbg.profile', JSON.stringify(c));
+
+export function loadBasemap(): BasemapId {
+  const v = get('kbg.basemap');
+  return isBasemapId(v) ? v : 'light';
+}
+export const saveBasemap = (id: BasemapId) => set('kbg.basemap', id);
