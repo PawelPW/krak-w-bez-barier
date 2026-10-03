@@ -22,6 +22,7 @@ export interface Reason {
   attr: string;
   value?: AttrValue;
   text: string;
+  cost?: number;
 }
 export interface Evaluation { blocked: boolean; costMultiplier: number; reasons: Reason[] }
 export type Status = 'ok' | 'difficult' | 'blocked' | 'unknown';
@@ -42,7 +43,6 @@ function explain(rule: Rule, v: AttrValue): string {
   const unit = def.unit ? ` ${def.unit}` : '';
   if (rule.gt !== undefined) return `${def.label}: ${v}${unit}, twój limit ${rule.gt}${unit}`;
   if (rule.lt !== undefined) return `${def.label}: ${v}${unit}, twoje minimum ${rule.lt}${unit}`;
-  if (def.type === 'bool') return `${def.label}: ${formatValue(rule.attr, v)}`;
   return `${def.label}: ${formatValue(rule.attr, v)}`;
 }
 
@@ -65,7 +65,9 @@ export function evaluate(profile: Profile, values: Values, kind: FeatureKind): E
     if (rule.unless && values[rule.unless] === true) return;
     if (hard) blocked = true;
     else costMultiplier *= rule.cost ?? 1;
-    reasons.push({ kind: hard ? 'hard' : 'soft', attr: rule.attr, value: v, text: explain(rule, v) });
+    const reason: Reason = { kind: hard ? 'hard' : 'soft', attr: rule.attr, value: v, text: explain(rule, v) };
+    if (!hard) reason.cost = rule.cost ?? 1;
+    reasons.push(reason);
   };
   for (const r of profile.hard) check(r, true);
   for (const r of profile.soft) check(r, false);
@@ -78,7 +80,7 @@ export function evaluate(profile: Profile, values: Values, kind: FeatureKind): E
 
 export function statusOf(ev: Evaluation): Status {
   if (ev.blocked) return 'blocked';
-  if (ev.reasons.some((r) => r.kind === 'soft' && ATTRS[r.attr].barrier(r.value!))) return 'difficult';
+  if (ev.reasons.some((r) => r.kind === 'soft' && (r.cost ?? 1) > 1)) return 'difficult';
   if (ev.reasons.some((r) => r.kind === 'unknown')) return 'unknown';
   return 'ok';
 }
