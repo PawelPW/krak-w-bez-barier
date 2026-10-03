@@ -1,20 +1,28 @@
 import { AppProvider, useApp } from './state';
-import type { Tab } from './state';
+import type { LonLat } from '@kbg/domain';
 import { MapView } from './components/MapView';
 import { FeatureSheet } from './components/FeatureSheet';
 import { TabBar } from './components/TabBar';
-
-const TITLES: Record<Tab, string> = { map: 'Mapa', list: 'Lista', route: 'Trasa', profile: 'Profil' };
+import { ListView } from './components/ListView';
+import { ProfileView } from './components/ProfileView';
+import { RouteView } from './components/RouteView';
 
 function Shell() {
-  const { tab } = useApp();
+  const { tab, pickTarget, setPickTarget, setRouteFrom, setRouteTo } = useApp();
+  const onPick = (p: LonLat) => {
+    if (pickTarget === 'from') setRouteFrom(p);
+    else if (pickTarget === 'to') setRouteTo(p);
+    setPickTarget(null);
+  };
   return (
     <div className="app">
       <div className="stage">
-        <MapView hidden={tab === 'list' || tab === 'profile'} />
+        <MapView hidden={tab === 'list' || tab === 'profile'} onPick={onPick} />
         <main id="main" tabIndex={-1} className={tab === 'map' ? 'main-map' : tab === 'route' ? 'main-float' : 'main-panel'}>
-          <h1 className={tab === 'map' ? 'sr-only' : undefined}>{TITLES[tab]}</h1>
-          {tab !== 'map' && <p>Ten widok pojawi się w kolejnym kroku.</p>}
+          {tab === 'map' && <h1 className="sr-only">Mapa</h1>}
+          {tab === 'list' && <ListView />}
+          {tab === 'profile' && <ProfileView />}
+          {tab === 'route' && <RouteView />}
         </main>
       </div>
       <FeatureSheet />

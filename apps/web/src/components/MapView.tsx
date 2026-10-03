@@ -17,7 +17,8 @@ interface Props {
 }
 
 export function MapView({ hidden, onPick }: Props) {
-  const { features, bbox, states, profile, statusFor, selectedId, select, tab, route } = useApp();
+  const { features, bbox, states, profile, statusFor, selectedId, select, tab, route, routeFrom, routeTo, setMapCenter, setUserPos } = useApp();
+  const markers = useRef<{ from: maplibregl.Marker | null; to: maplibregl.Marker | null }>({ from: null, to: null });
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const readyRef = useRef(false);
@@ -65,7 +66,8 @@ export function MapView({ hidden, onPick }: Props) {
     const geo = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: false });
     geoRef.current = geo;
     map.addControl(geo, 'top-right');
-    geo.on('geolocate', () => setGeoMsg(''));
+    geo.on('geolocate', (e: GeolocationPosition) => { setGeoMsg(''); setUserPos([e.coords.longitude, e.coords.latitude]); });
+    map.on('moveend', () => { const c = map.getCenter(); setMapCenter([c.lng, c.lat]); });
     geo.on('error', (e: GeolocationPositionError) => setGeoMsg(e.code === 1 ? 'Brak zgody na lokalizację.' : 'Nie udało się ustalić lokalizacji.'));
     // Mapa jest aria-hidden: nic w jej wnętrzu nie może być osiągalne klawiaturą.
     const untab = () => {
@@ -127,7 +129,7 @@ export function MapView({ hidden, onPick }: Props) {
       sel(hit ? String(hit.properties.id) : null);
     });
 
-    return () => { readyRef.current = false; map.remove(); mapRef.current = null; };
+    return () => { readyRef.current = false; markers.current = { from: null, to: null }; map.remove(); mapRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -151,11 +153,26 @@ export function MapView({ hidden, onPick }: Props) {
       if (route && route.coords.length > 1) {
         const b = new maplibregl.LngLatBounds(route.coords[0], route.coords[0]);
         for (const c of route.coords) b.extend(c);
-        map.fitBounds(b, { padding: 48, maxZoom: 18 });
+        map.fitBounds(b, { padding: { top: 48, left: 32, right: 32, bottom: Math.round(map.getContainer().clientHeight * 0.5) + 16 }, maxZoom: 18 });
       }
     };
     if (readyRef.current) apply(); else map.once('load', apply);
   }, [route]);
+
+  // Znaczniki startu (S, zielony) i celu (C, czerwony); litera, nie tylko kolor.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const [key, pt, letter] of [['from', routeFrom, 'S'], ['to', routeTo, 'C']] as const) {
+      const cur = markers.current[key];
+      if (!pt) { cur?.remove(); markers.current[key] = null; continue; }
+      if (cur) { cur.setLngLat(pt); continue; }
+      const node = document.createElement('div');
+      node.className = `pin pin-${key}`;
+      node.textContent = letter;
+      markers.current[key] = new maplibregl.Marker({ element: node }).setLngLat(pt).addTo(map);
+    }
+  }, [routeFrom, routeTo]);
 
   return (
     <div className="mapwrap" style={hidden ? { visibility: 'hidden' } : undefined}>

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { evaluate, mergeOverrides, profileById, statusOf, valuesFromStates } from '@kbg/domain';
-import type { Evaluation, Feature, Profile, RouteResult, StatesByAttr, StatesByFeature, Status } from '@kbg/domain';
+import type { Evaluation, Feature, LonLat, Profile, RouteResult, StatesByAttr, StatesByFeature, Status } from '@kbg/domain';
 import { getSnapshot, getStates } from './api';
 import { loadProfileChoice, saveProfileChoice } from './profileStore';
 import type { ProfileChoice } from './profileStore';
@@ -23,6 +23,17 @@ export interface AppValue {
   select(id: string | null): void;
   route: RouteResult | null;
   setRoute(r: RouteResult | null): void;
+  routeFrom: LonLat | null;
+  routeTo: LonLat | null;
+  setRouteFrom(p: LonLat | null): void;
+  setRouteTo(p: LonLat | null): void;
+  /** Który koniec trasy zostanie ustawiony następnym dotknięciem mapy (zakładka Trasa). */
+  pickTarget: 'from' | 'to' | null;
+  setPickTarget(t: 'from' | 'to' | null): void;
+  mapCenter: LonLat;
+  setMapCenter(p: LonLat): void;
+  userPos: LonLat | null;
+  setUserPos(p: LonLat | null): void;
   statusFor(f: Feature): Status;
   evalFor(f: Feature): Evaluation;
 }
@@ -46,6 +57,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<Tab>('map');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [route, setRoute] = useState<RouteResult | null>(null);
+  const [routeFrom, setFrom] = useState<LonLat | null>(null);
+  const [routeTo, setTo] = useState<LonLat | null>(null);
+  const [pickTarget, setPickTarget] = useState<'from' | 'to' | null>(null);
+  const [mapCenter, setMapCenter] = useState<LonLat>([19.940, 50.057]);
+  const [userPos, setUserPos] = useState<LonLat | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -60,7 +76,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const features = data?.features;
   const featuresById = useMemo(() => new Map((features ?? []).map((f) => [f.id, f])), [features]);
   const profile = useMemo(() => mergeOverrides(profileById(choice.id), choice.overrides), [choice]);
-  const setChoice = useCallback((c: ProfileChoice) => { saveProfileChoice(c); setChoiceRaw(c); }, []);
+  const setChoice = useCallback((c: ProfileChoice) => { saveProfileChoice(c); setChoiceRaw(c); setRoute(null); }, []);
+  // Zmiana końca trasy unieważnia narysowaną trasę (ponowne wyznaczenie jest ręczne).
+  const setRouteFrom = useCallback((p: LonLat | null) => { setFrom(p); setRoute(null); }, []);
+  const setRouteTo = useCallback((p: LonLat | null) => { setTo(p); setRoute(null); }, []);
   const setFeatureStates = useCallback((id: string, s: StatesByAttr) => setStates((prev) => ({ ...prev, [id]: s })), []);
   const select = useCallback((id: string | null) => setSelectedId(id), []);
   const evalFor = useCallback((f: Feature) => evaluate(profile, valuesFromStates(states[f.id]), f.kind), [profile, states]);
@@ -69,7 +88,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppValue | null>(() => data && ({
     features: data.features, featuresById, bbox: data.bbox, states, setFeatureStates, profile, choice, setChoice,
     tab, setTab, selectedId, select, route, setRoute, statusFor, evalFor,
-  }), [data, featuresById, states, setFeatureStates, profile, choice, setChoice, tab, selectedId, select, route, statusFor, evalFor]);
+    routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, setPickTarget, mapCenter, setMapCenter, userPos, setUserPos,
+  }), [data, featuresById, states, setFeatureStates, profile, choice, setChoice, tab, selectedId, select, route, statusFor, evalFor, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, mapCenter, userPos]);
 
   if (error) {
     return (
