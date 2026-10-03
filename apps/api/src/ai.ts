@@ -6,7 +6,7 @@ export interface Suggestion { attr: string; value: AttrValue; confidence: number
 
 // Klucz tylko ze środowiska serwera; bez klucza AI jest po prostu niedostępne.
 const MODEL = 'claude-haiku-4-5';
-const client = process.env.ANTHROPIC_API_KEY ? new Anthropic({ timeout: 30_000, maxRetries: 1 }) : null;
+const client = process.env.ANTHROPIC_API_KEY ? new Anthropic({ timeout: 30_000, maxRetries: 0 }) : null;
 
 const ATTR_KEYS = ['surface', 'smoothness', 'tactile_paving', 'steps'] as const;
 

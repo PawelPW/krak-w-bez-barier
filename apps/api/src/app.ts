@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { compress } from 'hono/compress';
 import { ATTRS, PROFILES, isValidValue, nearestFeature, planRoute } from '@kbg/domain';
 import type { LonLat, Profile } from '@kbg/domain';
@@ -85,9 +86,14 @@ const coord = (v: unknown, min: number, max: number): number | null => {
 };
 
 // Zdjęcie nie jest rozmywane (znane ograniczenie dema). AI tylko sugeruje; decyzję podejmuje człowiek.
+app.use('/api/photos', bodyLimit({ maxSize: 3_500_000, onError: (c) => c.json({ message: 'Wymagane zdjęcie JPEG do 3 MB' }, 413) }));
 app.post('/api/photos', async (c) => {
   const author = authorOf(c);
   if (!author) return c.json({ message: 'Brak identyfikatora urządzenia' }, 401);
+  const since = new Date(Date.now() - 3_600_000).toISOString();
+  const recent = (store.db.prepare(`SELECT COUNT(*) AS n FROM photos WHERE author_id = ? AND created_at > ?`).get(author, since) as { n: number }).n;
+  if (recent >= PHOTOS_PER_HOUR) return c.json({ message: 'Limit zdjęć na godzinę został wyczerpany. Spróbuj później.' }, 429);
+
   const form = await c.req.parseBody().catch(() => null);
   if (!form) return c.json({ message: 'Nieprawidłowe zapytanie' }, 400);
   const file = form.file;
@@ -95,21 +101,22 @@ app.post('/api/photos', async (c) => {
   const jpeg = Buffer.from(await file.arrayBuffer());
   if (jpeg.length > MAX_PHOTO_BYTES || jpeg.length < 4 || jpeg[0] !== 0xff || jpeg[1] !== 0xd8 || jpeg[2] !== 0xff) return c.json({ message: 'Wymagane zdjęcie JPEG do 3 MB' }, 400);
 
-  const rawLon = form.lon, rawLat = form.lat;
-  const lon = coord(rawLon, -180, 180), lat = coord(rawLat, -90, 90);
-  if ((rawLon !== undefined || rawLat !== undefined) && (lon === null || lat === null)) return c.json({ message: 'Nieprawidłowa pozycja' }, 400);
+  // Brak pozycji (puste pole albo tylko jedna współrzędna) = pozycja nieznana, nie błąd.
+  const present = (v: unknown) => v !== undefined && !(typeof v === 'string' && v.trim() === '');
+  let lon: number | null = null, lat: number | null = null;
+  if (present(form.lon) && present(form.lat)) {
+    lon = coord(form.lon, -180, 180);
+    lat = coord(form.lat, -90, 90);
+    if (lon === null || lat === null) return c.json({ message: 'Nieprawidłowa pozycja' }, 400);
+  }
   const hasPos = lon !== null && lat !== null;
   let featureId: string | null = null;
   if (form.featureId !== undefined && form.featureId !== '') {
     if (typeof form.featureId !== 'string' || !store.featuresById.has(form.featureId)) return c.json({ message: 'Nieznane miejsce' }, 400);
     featureId = form.featureId;
-  } else if (hasPos) {
+  } else if (lon !== null && lat !== null) {
     featureId = nearestFeature(store.featuresById.values(), [lon, lat], 30)?.id ?? null;
   }
-
-  const since = new Date(Date.now() - 3_600_000).toISOString();
-  const recent = (store.db.prepare(`SELECT COUNT(*) AS n FROM photos WHERE author_id = ? AND created_at > ?`).get(author, since) as { n: number }).n;
-  if (recent >= PHOTOS_PER_HOUR) return c.json({ message: 'Limit zdjęć na godzinę został wyczerpany. Spróbuj później.' }, 429);
 
   const id = randomUUID();
   writeFileSync(resolve(store.dataDir, 'photos', `${id}.jpg`), jpeg);
