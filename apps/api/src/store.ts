@@ -13,7 +13,7 @@ export const states: StatesByFeature = {};
 export const valuesOf = (featureId: string) => valuesFromStates(states[featureId]);
 
 const qObs = db.prepare(`
-SELECT o.value, o.source, o.observed_at, o.valid_until, COALESCE(a.reputation, 1) AS rep,
+SELECT o.id, o.author_id, o.value, o.source, o.observed_at, o.valid_until, COALESCE(a.reputation, 1) AS rep,
   (SELECT COALESCE(SUM(va.reputation), 0) FROM verifications v JOIN authors va ON va.id = v.author_id WHERE v.observation_id = o.id AND v.agree = 1) AS agree_w,
   (SELECT COALESCE(SUM(va.reputation), 0) FROM verifications v JOIN authors va ON va.id = v.author_id WHERE v.observation_id = o.id AND v.agree = 0) AS disagree_w,
   (SELECT COUNT(*) FROM verifications v WHERE v.observation_id = o.id AND v.agree = 1) AS agree_n,
@@ -24,7 +24,15 @@ const upState = db.prepare(`INSERT OR REPLACE INTO attribute_states (feature_id,
 const delState = db.prepare(`DELETE FROM attribute_states WHERE feature_id = ? AND attr = ?`);
 
 export function recompute(featureId: string, attr: string, now = new Date()): void {
-  const rows = qObs.all(featureId, attr) as any[];
+  const all = qObs.all(featureId, attr) as any[];
+  // Liczy się tylko najnowsze zgłoszenie każdego autora oraz najnowsza obserwacja AI; starsze zostają w historii.
+  const latest = new Map<string, any>();
+  for (const r of all) {
+    const key = r.source === 'user' ? `user:${r.author_id}` : r.source === 'ai' ? 'ai' : `osm:${r.id}`;
+    const cur = latest.get(key);
+    if (!cur || r.observed_at > cur.observed_at) latest.set(key, r);
+  }
+  const rows = [...latest.values()];
   const obs: ObsForState[] = rows.map((r) => ({
     value: JSON.parse(r.value), source: r.source as Source,
     authorReputation: r.source === 'user' ? r.rep : 1,
@@ -59,9 +67,13 @@ export function insertObservation(o: NewObservation): string {
 
 export type VerifyResult = { ok: true; featureId: string } | { ok: false; status: 403 | 404 | 409; message: string };
 export function verify(observationId: string, authorId: string, agree: boolean): VerifyResult {
-  const o = db.prepare(`SELECT feature_id, attr, value, author_id, observed_at FROM observations WHERE id = ?`).get(observationId) as any;
+  const o = db.prepare(`SELECT feature_id, attr, value, author_id, source, photo_id, observed_at FROM observations WHERE id = ?`).get(observationId) as any;
   if (!o) return { ok: false, status: 404, message: 'Nie ma takiego zgłoszenia' };
   if (o.author_id === authorId) return { ok: false, status: 403, message: 'Nie można potwierdzać własnych zgłoszeń' };
+  if (o.source === 'ai' && o.photo_id) {
+    const ph = db.prepare(`SELECT author_id FROM photos WHERE id = ?`).get(o.photo_id) as any;
+    if (ph && ph.author_id === authorId) return { ok: false, status: 403, message: 'Nie można potwierdzać sugestii z własnego zdjęcia' };
+  }
   const exists = db.prepare(`SELECT 1 FROM verifications WHERE observation_id = ? AND author_id = ?`).get(observationId, authorId);
   if (exists) return { ok: false, status: 409, message: 'To zgłoszenie już oceniłeś' };
   const now = new Date();
@@ -81,7 +93,8 @@ export function featureDetail(featureId: string, authorId: string | null) {
     SELECT o.*, 
       (SELECT COUNT(*) FROM verifications v WHERE v.observation_id = o.id AND v.agree = 1) AS agree,
       (SELECT COUNT(*) FROM verifications v WHERE v.observation_id = o.id AND v.agree = 0) AS disagree,
-      (SELECT v.agree FROM verifications v WHERE v.observation_id = o.id AND v.author_id = ?) AS my_vote
+      (SELECT v.agree FROM verifications v WHERE v.observation_id = o.id AND v.author_id = ?) AS my_vote,
+      (SELECT p.author_id FROM photos p WHERE p.id = o.photo_id) AS photo_author
     FROM observations o WHERE o.feature_id = ? ORDER BY o.observed_at DESC`).all(authorId, featureId) as any[];
   return {
     states: (states[featureId] ?? {}) as StatesByAttr,
@@ -89,7 +102,7 @@ export function featureDetail(featureId: string, authorId: string | null) {
       id: r.id, attr: r.attr, value: JSON.parse(r.value) as AttrValue, source: r.source as Source,
       observedAt: r.observed_at, validUntil: r.valid_until, expired: !!r.valid_until && r.valid_until < now,
       photoId: r.photo_id, agree: r.agree, disagree: r.disagree,
-      mine: !!authorId && r.author_id === authorId, myVote: r.my_vote === null ? null : r.my_vote === 1,
+      mine: !!authorId && (r.author_id === authorId || (r.source === 'ai' && r.photo_author === authorId)), myVote: r.my_vote === null ? null : r.my_vote === 1,
     })),
   };
 }

@@ -95,7 +95,7 @@ export function planRoute(
         summary.crossings.total++;
         if (nv.tactile_paving === true) summary.crossings.tactile++;
         if (nv.signal_sound === true) summary.crossings.sound++;
-        if (nv.tactile_paving === undefined) summary.crossings.unknown++;
+        if (nv.tactile_paving === undefined || nx.reasons.some((r) => r.kind === 'unknown')) summary.crossings.unknown++;
       }
       const facts = ['tactile_paving', 'signal_sound', 'kerb_height_cm']
         .map((attr) => `${ATTRS[attr].label.toLowerCase()}: ${nv[attr] === undefined ? 'brak danych' : formatValue(attr, nv[attr]!)}`)

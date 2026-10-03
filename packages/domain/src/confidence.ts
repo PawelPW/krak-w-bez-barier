@@ -1,7 +1,8 @@
 import type { AttrValue, AttributeState, Source } from './types';
 
 export const SOURCE_WEIGHT: Record<Source, number> = { osm: 0.6, user: 0.8, ai: 0.3 };
-export const HALF_LIFE_DAYS = 180;
+// Obiekty OSM w obszarze dema mają medianę wieku 548 dni; przy 180 dniach mediana pewności samego OSM wynosiła 7%.
+export const HALF_LIFE_DAYS: Record<Source, number> = { osm: 730, user: 180, ai: 180 };
 
 export interface ObsForState {
   value: AttrValue;
@@ -17,15 +18,19 @@ export interface ObsForState {
 
 export function obsWeight(o: ObsForState, now: Date): number {
   const ageDays = Math.max(0, (now.getTime() - Date.parse(o.observedAt)) / 86400000);
-  const decay = Math.pow(0.5, ageDays / HALF_LIFE_DAYS);
+  const decay = Math.pow(0.5, ageDays / HALF_LIFE_DAYS[o.source]);
   return Math.max(0, SOURCE_WEIGHT[o.source] * o.authorReputation * decay + o.agreeWeight - o.disagreeWeight);
 }
 
 export function computeState(observations: ObsForState[], now: Date): AttributeState | null {
   const groups = new Map<string, { value: AttrValue; weight: number; sources: Set<Source>; agrees: number; last: string }>();
   let total = 0;
+  const live = (o: ObsForState) => !(o.validUntil && Date.parse(o.validUntil) < now.getTime());
+  // AI nie nadpisuje danych ludzi ani OSM: niepotwierdzone obserwacje AI są pomijane, gdy istnieje jakakolwiek inna.
+  const hasNonAi = observations.some((o) => o.source !== 'ai' && live(o) && obsWeight(o, now) > 0);
   for (const o of observations) {
-    if (o.validUntil && Date.parse(o.validUntil) < now.getTime()) continue;
+    if (!live(o)) continue;
+    if (hasNonAi && o.source === 'ai' && o.agreeCount === 0) continue;
     const w = obsWeight(o, now);
     if (w <= 0) continue;
     total += w;

@@ -49,6 +49,9 @@ app.post('/api/observations', async (c) => {
   if (!b || typeof b !== 'object') return c.json({ message: 'Nieprawidłowe zapytanie' }, 400);
   if (!store.featuresById.has(b.featureId)) return c.json({ message: 'Nieznane miejsce' }, 400);
   if (!isValidValue(b.attr, b.value)) return c.json({ message: 'Nieprawidłowa wartość atrybutu' }, 400);
+  const kind = store.featuresById.get(b.featureId)!.kind === 'segment' ? 'segment' : 'node';
+  if (!ATTRS[b.attr].appliesTo.includes(kind)) return c.json({ message: 'Ten atrybut nie dotyczy tego miejsca' }, 400);
+  if (b.photoId != null && (typeof b.photoId !== 'string' || !store.db.prepare(`SELECT 1 FROM photos WHERE id = ?`).get(b.photoId))) return c.json({ message: 'Nieznane zdjęcie' }, 400);
   if (b.validUntil != null && (typeof b.validUntil !== 'string' || Number.isNaN(Date.parse(b.validUntil)))) return c.json({ message: 'Nieprawidłowa data ważności' }, 400);
   const validUntil = b.validUntil != null ? new Date(b.validUntil).toISOString() : null;
   const id = store.insertObservation({ featureId: b.featureId, attr: b.attr, value: b.value, source: 'user', authorId: author, validUntil, photoId: typeof b.photoId === 'string' ? b.photoId : null });

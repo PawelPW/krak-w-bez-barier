@@ -49,21 +49,21 @@ export const ATTRS: Record<string, AttrDef> = {
 };
 
 export function isBarrier(attr: string, value: AttrValue): boolean {
-  return ATTRS[attr]?.barrier(value) ?? false;
+  return Object.hasOwn(ATTRS, attr) ? ATTRS[attr].barrier(value) : false;
 }
 
 export function formatValue(attr: string, value: AttrValue): string {
+  if (!Object.hasOwn(ATTRS, attr)) return String(value);
   const def = ATTRS[attr];
-  if (!def) return String(value);
   if (def.type === 'bool') return value ? 'jest' : 'nie ma';
   if (def.type === 'number') return `${value} ${def.unit ?? ''}`.trim();
-  return def.options?.[String(value)] ?? String(value);
+  return def.options && Object.hasOwn(def.options, String(value)) ? def.options[String(value)] : String(value);
 }
 
 export function isValidValue(attr: string, value: unknown): value is AttrValue {
+  if (!Object.hasOwn(ATTRS, attr)) return false;
   const def = ATTRS[attr];
-  if (!def) return false;
   if (def.type === 'bool') return typeof value === 'boolean';
   if (def.type === 'number') return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value < 10000;
-  return typeof value === 'string' && value in (def.options ?? {});
+  return typeof value === 'string' && Object.hasOwn(def.options ?? {}, value);
 }
