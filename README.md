@@ -14,7 +14,13 @@ pnpm dev:api   # API na http://localhost:3000
 pnpm dev:web   # front (Vite), proxy /api i /photos na port 3000
 ```
 
-Wersja produkcyjna z jednego portu: `pnpm build`, potem `pnpm start` (API serwuje też zbudowany front).
+Adres w trybie deweloperskim to ten, który wypisze Vite (domyślnie http://localhost:5173). Jeśli port 5173 jest zajęty, Vite wybierze następny wolny; proxy `/api` i `/photos` zawsze kieruje na port 3000.
+
+Wersja produkcyjna z jednego portu: `pnpm build`, potem `pnpm start` (API serwuje też zbudowany front, http://localhost:3000). Service worker i baner „brak połączenia” działają tylko w tej wersji; po ponownym zbudowaniu trzeba odświeżyć stronę z pominięciem cache (twarde odświeżenie), żeby załadować nowy service worker.
+
+### Telefon
+
+Aparat (zdjęcie z podglądem), geolokalizacja i instalacja PWA wymagają bezpiecznego kontekstu. `localhost` na laptopie działa. Telefon łączący się przez zwykły HTTP w sieci lokalnej załaduje aplikację, ale bez robienia zdjęć aparatem i bez geolokalizacji. Na Androidzie `adb reverse tcp:3000 tcp:3000` sprawia, że `http://localhost:3000` na telefonie trafia do serwera na laptopie. W WSL2 port domyślnie nie jest dostępny z sieci lokalnej.
 
 ### Klucz do analizy zdjęć (lokalnie)
 
@@ -32,6 +38,8 @@ pnpm import:osm
 
 Skrypt pobiera dane z głównego API OpenStreetMap, dzieląc obszar na siatkę kafli 3×3. Wynik trafia do `data/krakow.json`.
 
+Obserwacje z OSM są wczytywane do bazy tylko raz, przy pierwszym starcie. Po ponownym imporcie trzeba usunąć katalog `var/` (albo katalog z `DATA_DIR`), żeby zostały wczytane od nowa. Usunięcie `var/` kasuje też dane społeczności: zgłoszenia, głosy, reputację i zdjęcia.
+
 ## Zmienne środowiskowe
 
 - `ANTHROPIC_API_KEY` (opcjonalna, tylko po stronie serwera; lokalnie z pliku `.env`): włącza analizę zdjęć. Bez niej zdjęcie jest zapisywane, a użytkownik uzupełnia dane ręcznie.
@@ -47,5 +55,4 @@ Dane mapy © autorzy OpenStreetMap, licencja ODbL (https://www.openstreetmap.org
 - Zdjęcia nie są rozmywane (twarze, tablice rejestracyjne). Trzeba to rozwiązać przed jakimkolwiek publicznym uruchomieniem.
 - Brak logowania; autorzy zgłoszeń to anonimowe identyfikatory urządzeń.
 - Progi w profilach dostępności (nachylenie, szerokość, wysokość krawężnika) są wstępne i nie są zweryfikowane.
-- Obszar demo to Stare Miasto i Kazimierz.
 - Aplikacja służy do planowania trasy, nie do nawigacji; GPS w wąskich ulicach myli się o kilka–kilkanaście metrów.

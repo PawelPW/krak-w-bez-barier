@@ -92,7 +92,10 @@ AttributeState jest przeliczany przy każdym zapisie obserwacji lub weryfikacji,
 
 - Waga obserwacji = waga źródła × reputacja autora × wygaszanie w czasie.
 - Wagi źródeł: osm 0,6, user 0,8, ai 0,3. Dla źródeł `osm` i `ai` reputacja wynosi 1.
-- Wygaszanie: półokres 180 dni liczony od `observed_at`.
+- Wygaszanie liczone od `observed_at`: półokres 730 dni dla `osm` i 180 dni dla `user` i `ai`. Obiekty OSM w obszarze dema mają medianę wieku 548 dni; przy 180 dniach mediana pewności samego OSM wynosiła 7%, a 21% wierszy pokazywało 0%.
+- Do stanu liczy się tylko najnowsza obserwacja każdego autora (`user`) oraz najnowsza obserwacja `ai` dla danego atrybutu; starsze zostają w historii, ale nie wpływają na wynik.
+- Niepotwierdzone obserwacje `ai` (bez żadnej zgody) są całkowicie pomijane, gdy istnieje jakakolwiek ważna obserwacja z innego źródła. Obserwacja `ai` potwierdzona przez człowieka liczy się normalnie; gdy `ai` jest jedynym źródłem, jest używana i oznaczona jako niepotwierdzona.
+- Autor zdjęcia nie może potwierdzić sugestii AI z własnego zdjęcia (serwer odpowiada 403, a UI nie pokazuje przycisków głosowania).
 - Zgoda dodaje do wagi obserwacji reputację potwierdzającego, zaprzeczenie ją odejmuje (minimum 0).
 - Wartość atrybutu to ta z największą sumą wag.
 - Pewność = udział zwycięskiej wartości w sumie wag × min(1, suma wag zwycięskiej wartości).
@@ -147,6 +150,8 @@ Format profilu jak w briefie:
 - Dijkstra z kosztem krawędzi `długość × costMultiplier`; krawędzie `blocked` są pomijane.
 - Przejście będące węzłem na trasie dolicza koszt z oceny tego przejścia.
 - Odpowiedź: geometria, długość, podsumowanie (liczba przejść, w tym z polami uwagi, z sygnałem dźwiękowym i bez danych; schody; udziały nawierzchni; metry bez danych) oraz lista kroków z powodami.
+- Do licznika przejść „brak danych” trafia każde przejście, w którego ocenie dla profilu jest brakujący atrybut istotny dla reguł (powód rodzaju `unknown`), a także przejście bez znanych pól uwagi.
+- Gdy dane się zmienią (zgłoszenie, głos), klient sam wyznacza istniejącą trasę ponownie z tymi samymi punktami i profilem i ogłasza to w regionie live zakładki Trasa.
 - Gdy trasa nie istnieje, serwer liczy trasę z regułami twardymi zamienionymi na bardzo wysoki koszt i zwraca ją z flagą `violatesHardRules` oraz listą złamanych reguł.
 
 ## API
