@@ -15,12 +15,23 @@ const PHRASE: Record<Status, string> = {
 };
 
 export function ListView() {
-  const { features, userPos, getMapCenter, statusFor, evalFor, select } = useApp();
+  const { features, userPos, setUserPos, getMapCenter, statusFor, evalFor, select } = useApp();
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [kind, setKind] = useState<KindFilter>('all');
   // Środek mapy czytany raz przy pokazaniu listy (mapa jest wtedy ukryta, więc się nie zmienia).
   const [center] = useState<LonLat>(getMapCenter);
   const ref: LonLat = userPos ?? center;
+  const [geoMsg, setGeoMsg] = useState('');
+  const locate = () => {
+    setGeoMsg('');
+    const fail = (m: string) => setGeoMsg(m);
+    if (!navigator.geolocation) { fail('Nie udało się ustalić pozycji. Sortuję od środka mapy.'); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setGeoMsg(''); setUserPos([pos.coords.longitude, pos.coords.latitude]); },
+      (err) => fail(err.code === err.PERMISSION_DENIED ? 'Brak zgody na lokalizację. Sortuję od środka mapy.' : 'Nie udało się ustalić pozycji. Sortuję od środka mapy.'),
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  };
 
   // Odległości liczone raz na zmianę punktu odniesienia; potem tylko lazy filtrowanie po statusie.
   const sorted = useMemo(() => {
@@ -52,7 +63,8 @@ export function ListView() {
   return (
     <>
       <h1>Miejsca w pobliżu</h1>
-      <p>{userPos ? 'Sortowanie według odległości od Twojej pozycji.' : 'Sortowanie według odległości od środka mapy (brak zgody na lokalizację).'}</p>
+      <button type="button" className="btn" onClick={locate}>Użyj mojej pozycji</button>
+      <p role="status" className="sort-note">{geoMsg || (userPos ? 'Sortowanie według odległości od Twojej pozycji.' : 'Sortowanie według odległości od środka mapy.')}</p>
       <label className="check"><input type="checkbox" checked={onlyProblems} onChange={(e) => setOnlyProblems(e.target.checked)} /> Tylko problemy dla mojego profilu</label>
       <fieldset className="radios">
         <legend>Rodzaj</legend>

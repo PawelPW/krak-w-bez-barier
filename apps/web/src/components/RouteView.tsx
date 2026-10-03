@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { nearestFeature } from '@kbg/domain';
 import type { LonLat } from '@kbg/domain';
-import { postRoute } from '../api';
 import { useApp } from '../state';
 
 // Nazwy szukane w migawce; Rynek Główny i plac Wolnica mają zapasowe współrzędne.
 const WANTED: { name: string; label: string; fallback?: LonLat }[] = [
   { name: 'Rynek Główny', label: 'Rynek Główny', fallback: [19.9373, 50.0617] },
   { name: 'plac Wolnica', label: 'Plac Wolnica', fallback: [19.9445, 50.0516] },
-  { name: 'plac Nowy', label: 'Plac Nowy' },
-  { name: 'Planty', label: 'Planty' },
   { name: 'Floriańska', label: 'ulica Floriańska' },
   { name: 'Grodzka', label: 'ulica Grodzka' },
   { name: 'Szeroka', label: 'ulica Szeroka' },
@@ -19,20 +16,13 @@ const WANTED: { name: string; label: string; fallback?: LonLat }[] = [
 type Which = 'from' | 'to';
 
 export function RouteView() {
-  const { features, profile, route, setRoute, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, setPickTarget, setUserPos, select } = useApp();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ kind: 'alert' | 'info'; text: string } | null>(null);
+  const { features, route, routeBusy: busy, routeMessage: message, routeNotice, computeRoute, routeFrom, routeTo, setRouteFrom, setRouteTo, pickTarget, setPickTarget, setUserPos, select } = useApp();
   const [geoMsg, setGeoMsg] = useState('');
   // Wybrane „znane miejsce” per pole (indeks w `places` jako tekst, '' = placeholder).
   const [placeSel, setPlaceSel] = useState<Record<Which, string>>({ from: '', to: '' });
-  // Numer bieżącego żądania trasy: spóźniona odpowiedź dla innych punktów/profilu jest odrzucana.
-  const reqId = useRef(0);
   const sentenceRef = useRef<HTMLParagraphElement>(null);
   // Wynik pojawia się pod formularzem w niskim panelu: przewiń, żeby zdanie było widoczne.
   useEffect(() => { if (route) sentenceRef.current?.scrollIntoView({ block: 'start' }); }, [route]);
-
-  useEffect(() => { reqId.current++; setBusy(false); }, [routeFrom, routeTo, profile]);
-  useEffect(() => () => { reqId.current++; }, []);
 
   const places = useMemo(() => {
     const byName = new Map<string, LonLat>();
@@ -53,7 +43,7 @@ export function RouteView() {
   const fromText = useMemo(() => describe(routeFrom), [describe, routeFrom]);
   const toText = useMemo(() => describe(routeTo), [describe, routeTo]);
 
-  const set = (w: Which, p: LonLat | null) => { setMessage(null); (w === 'from' ? setRouteFrom : setRouteTo)(p); };
+  const set = (w: Which, p: LonLat | null) => { (w === 'from' ? setRouteFrom : setRouteTo)(p); };
 
   const locate = () => {
     setGeoMsg('');
@@ -65,24 +55,7 @@ export function RouteView() {
     );
   };
 
-  const go = async () => {
-    if (!routeFrom || !routeTo) return;
-    const id = ++reqId.current;
-    setBusy(true); setMessage(null); setRoute(null);
-    try {
-      const res = await postRoute(routeFrom, routeTo, profile);
-      if (id !== reqId.current) return;
-      if ('error' in res) {
-        setMessage({ kind: 'info', text: res.error === 'out_of_area' ? 'Ten punkt jest poza obszarem dema (Stare Miasto i Kazimierz).' : 'Nie znaleziono połączenia między tymi punktami.' });
-      } else if (res.coords.length === 0 || res.summary.lengthM === 0) {
-        setMessage({ kind: 'info', text: 'Start i cel to to samo miejsce. Wskaż dwa różne punkty.' });
-      } else {
-        setRoute(res);
-      }
-    } catch (e) {
-      if (id === reqId.current) setMessage({ kind: 'alert', text: (e as Error).message });
-    } finally { if (id === reqId.current) setBusy(false); }
-  };
+  const go = () => { if (routeFrom && routeTo) computeRoute(); };
 
   if (pickTarget) {
     return (
@@ -134,6 +107,7 @@ export function RouteView() {
       <p role="status" className="route-busy">{busy ? 'Wyznaczanie trasy…' : ''}</p>
       <div className="route-result">
         <div aria-live="polite" className="route-live">
+          {routeNotice && <p>{routeNotice}</p>}
           {message && (message.kind === 'alert' ? <p role="alert" className="error">{message.text}</p> : <p>{message.text}</p>)}
           {route && (
             <>

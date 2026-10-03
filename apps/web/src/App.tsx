@@ -19,7 +19,7 @@ function OfflineBanner() {
   }, []);
   const at = readLastLoad();
   // Kontener jest zawsze w drzewie dostępności; zmienia się tylko tekst.
-  return <p role="status" className="offline">{online ? '' : at ? `Dane z ${formatDateTime(at)} — brak połączenia` : 'Brak połączenia'}</p>;
+  return <p role="status" className="offline">{online ? '' : at ? `Brak połączenia. Ostatnie udane wczytanie danych: ${formatDateTime(at)}.` : 'Brak połączenia.'}</p>;
 }
 
 function Shell() {

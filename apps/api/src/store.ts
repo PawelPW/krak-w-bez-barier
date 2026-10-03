@@ -96,9 +96,18 @@ export function featureDetail(featureId: string, authorId: string | null) {
       (SELECT v.agree FROM verifications v WHERE v.observation_id = o.id AND v.author_id = ?) AS my_vote,
       (SELECT p.author_id FROM photos p WHERE p.id = o.photo_id) AS photo_author
     FROM observations o WHERE o.feature_id = ? ORDER BY o.observed_at DESC`).all(authorId, featureId) as any[];
+  // Wiersze są od najnowszego: starsza obserwacja tego samego autora (albo AI) dla tego atrybutu jest „zastąpiona” i nie liczy się do stanu.
+  const seen = new Set<string>();
+  const superseded = new Set<string>();
+  for (const r of rows) {
+    if (r.source === 'osm') continue;
+    const key = `${r.attr}|${r.source === 'ai' ? 'ai' : r.author_id}`;
+    if (seen.has(key)) superseded.add(r.id); else seen.add(key);
+  }
   return {
     states: (states[featureId] ?? {}) as StatesByAttr,
     observations: rows.map((r) => ({
+      superseded: superseded.has(r.id),
       id: r.id, attr: r.attr, value: JSON.parse(r.value) as AttrValue, source: r.source as Source,
       observedAt: r.observed_at, validUntil: r.valid_until, expired: !!r.valid_until && r.valid_until < now,
       photoId: r.photo_id, agree: r.agree, disagree: r.disagree,

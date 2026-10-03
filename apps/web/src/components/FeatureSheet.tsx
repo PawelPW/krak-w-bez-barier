@@ -67,7 +67,7 @@ export function FeatureSheet() {
 
   if (!feature) return null;
 
-  const onVerify = async (obsId: string, agree: boolean) => {
+  const onVerify = async (obsId: string, agree: boolean): Promise<void> => {
     try {
       const res = await postVerify(obsId, agree);
       setFeatureStates(feature.id, res.states);

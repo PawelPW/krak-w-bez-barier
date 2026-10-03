@@ -60,10 +60,8 @@ main { outline: none; }
 .attr-label { font-weight: 600; }
 .attr-state { display: inline-flex; align-items: center; gap: 6px; text-align: right; }
 .state-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 14px; font-weight: 700; flex: none; }
-.state-present { color: var(--ok); font-weight: 700; }
-.state-present .state-icon { background: var(--ok); color: #fff; }
-.state-absent { color: var(--ink); font-weight: 700; }
-.state-absent .state-icon { background: var(--ink); color: #fff; border-radius: 4px; }
+.state-known { color: var(--ink); font-weight: 700; }
+.state-known .state-icon { width: 14px; height: 14px; font-size: 8px; color: var(--ink); } /* neutralny znak: znana wartość nie znaczy „dobrze” */
 .state-unknown { color: var(--muted); font-style: italic; font-weight: 400; }
 .state-unknown .state-icon { border: 2px dashed var(--unknown); color: var(--muted); font-style: normal; background: none; }
 .attr-meta { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: 14px; color: var(--muted); align-items: center; }
@@ -71,6 +69,10 @@ main { outline: none; }
 .conf meter { width: 72px; height: 10px; }
 .attr-warn { margin: 0; font-size: 14px; }
 .badge { display: inline-block; padding: 1px 8px; border: 2px solid var(--difficult); color: var(--difficult); border-radius: 999px; font-weight: 700; font-size: 13px; }
+.attr-rivals { list-style: none; margin: 4px 0 0 12px; padding: 0 0 0 10px; border-left: 3px dashed var(--line); display: grid; gap: 8px; font-size: 14px; }
+.attr-rivals p { margin: 0; }
+.attr-rivals .btn { min-height: 44px; font-size: 14px; padding: 4px 12px; }
+.rival-wait { color: var(--muted); font-style: italic; }
 .attr-actions { display: flex; gap: 8px; margin-top: 4px; }
 .attr-actions .btn { flex: 1; }
 
@@ -162,6 +164,7 @@ main h2 { font-size: 18px; margin-top: 8px; }
 .report-body { grid-template-columns: minmax(0, 1fr); overflow-wrap: anywhere; }
 .photo-pick-row { flex-wrap: wrap; }
 .suggest-item .attr-actions { flex-wrap: wrap; }
+.suggest-item .btn, .attr-rivals .btn { overflow-wrap: normal; padding-inline: 8px; }
 .report-form, .photo { grid-template-columns: minmax(0, 1fr); }
 .field select, .field input { min-width: 0; width: 100%; }
 .slider input { margin: 0; }

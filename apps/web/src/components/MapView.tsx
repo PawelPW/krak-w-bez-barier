@@ -13,7 +13,7 @@ const EMPTY = { type: 'FeatureCollection' as const, features: [] };
 
 interface Props {
   hidden?: boolean;
-  /** Używane od Task 8: wybór punktu na mapie w zakładce Trasa. */
+  /** Wybór punktu na mapie w zakładce Trasa. */
   onPick?: (lngLat: LonLat) => void;
 }
 
